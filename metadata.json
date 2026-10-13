@@ -1,0 +1,6 @@
+{
+  "name": "SnapAction AI",
+  "description": "Screenshot Anything. Turn It Into Action. Mobile-first AI visual action engine powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
