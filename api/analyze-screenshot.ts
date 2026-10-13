@@ -21,32 +21,36 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
 }
 
 async function generateContentWithFallback(params: any): Promise<any> {
-  const models = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let lastError: any = null;
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          ...params,
-          model,
-        });
-        return response;
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || JSON.stringify(err) || '');
-        const isTransient =
-          msg.includes('503') ||
-          msg.includes('high demand') ||
-          msg.includes('UNAVAILABLE') ||
-          msg.includes('RESOURCE_EXHAUSTED') ||
-          msg.includes('429');
+    try {
+      const response = await ai.models.generateContent({
+        ...params,
+        model,
+      });
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const msg = String(err?.message || JSON.stringify(err) || '');
+      console.warn(`[SnapAction Vercel] Model ${model} response issue: ${msg.substring(0, 120)}...`);
 
-        if (isTransient) {
-          console.warn(`[SnapAction Vercel] Model ${model} transient error: ${msg}. Retrying/falling back...`);
-          await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 1500));
-        } else {
-          break;
+      if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded') || msg.includes('429')) {
+        continue;
+      }
+
+      if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')) {
+        try {
+          await new Promise((r) => setTimeout(r, 400));
+          const retryRes = await ai.models.generateContent({
+            ...params,
+            model,
+          });
+          return retryRes;
+        } catch (retryErr) {
+          lastError = retryErr;
+          continue;
         }
       }
     }

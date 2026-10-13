@@ -37,36 +37,40 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
   return { mimeType: 'image/png', data: dataUrlOrBase64 };
 }
 
-// Resilient multi-model call with automatic retry & fallback on 503 / 429
+// Resilient high-speed model execution: prioritize ultra-fast gemini-3.1-flash-lite
 async function generateContentWithFallback(params: any): Promise<any> {
-  const models = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let lastError: any = null;
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          ...params,
-          model,
-        });
-        return response;
-      } catch (err: any) {
-        lastError = err;
-        const msg = String(err?.message || JSON.stringify(err) || '');
-        const isTransient =
-          msg.includes('503') ||
-          msg.includes('high demand') ||
-          msg.includes('UNAVAILABLE') ||
-          msg.includes('RESOURCE_EXHAUSTED') ||
-          msg.includes('429') ||
-          msg.includes('overloaded');
+    try {
+      const response = await ai.models.generateContent({
+        ...params,
+        model,
+      });
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const msg = String(err?.message || JSON.stringify(err) || '');
+      console.warn(`[SnapAction] Model ${model} response issue: ${msg.substring(0, 120)}...`);
 
-        if (isTransient) {
-          console.warn(`[SnapAction] Model ${model} attempt ${attempt + 1} transient error: ${msg}. Retrying/falling back...`);
-          await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 1500));
-        } else {
-          // Non-transient error, break to next candidate model
-          break;
+      // If quota is exhausted, immediately switch to next model with no delay
+      if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded') || msg.includes('429')) {
+        continue;
+      }
+
+      // For 503 transient spikes, brief 400ms retry before switching
+      if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')) {
+        try {
+          await new Promise((r) => setTimeout(r, 400));
+          const retryRes = await ai.models.generateContent({
+            ...params,
+            model,
+          });
+          return retryRes;
+        } catch (retryErr) {
+          lastError = retryErr;
+          continue;
         }
       }
     }

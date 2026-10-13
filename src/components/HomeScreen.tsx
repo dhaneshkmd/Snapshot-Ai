@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Plus, UploadCloud, Clipboard, Camera, Share2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { SAMPLE_SCREENSHOTS, svgToPngBase64, SampleItem } from '../utils/samples';
+import { optimizeScreenshot } from '../utils/imageCompressor';
 
 interface HomeScreenProps {
   onImageSelected: (imageBase64: string, mimeType: string, filename?: string) => void;
@@ -36,20 +37,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onImageSelected, isProce
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setPasteError('Please select a valid image screenshot');
       return;
     }
     setPasteError(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      if (base64) {
-        onImageSelected(base64, file.type, file.name);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const optimized = await optimizeScreenshot(file, 1280, 0.85);
+      onImageSelected(optimized.base64, optimized.mimeType, file.name);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        if (base64) {
+          onImageSelected(base64, file.type, file.name);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,12 +99,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onImageSelected, isProce
         const imageType = item.types.find((type) => type.startsWith('image/'));
         if (imageType) {
           const blob = await item.getType(imageType);
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const base64 = e.target?.result as string;
-            if (base64) onImageSelected(base64, imageType, 'clipboard-screenshot.png');
-          };
-          reader.readAsDataURL(blob);
+          try {
+            const file = new File([blob], 'clipboard-screenshot.png', { type: imageType });
+            const optimized = await optimizeScreenshot(file, 1280, 0.85);
+            onImageSelected(optimized.base64, optimized.mimeType, 'clipboard-screenshot.png');
+          } catch {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = e.target?.result as string;
+              if (base64) onImageSelected(base64, imageType, 'clipboard-screenshot.png');
+            };
+            reader.readAsDataURL(blob);
+          }
           return;
         }
       }
