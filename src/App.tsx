@@ -24,6 +24,32 @@ import {
 } from './utils/storage';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 
+function formatErrorMessage(errData: any, fallback: string): string {
+  if (!errData) return fallback;
+  if (typeof errData === 'string') {
+    try {
+      const parsed = JSON.parse(errData);
+      return formatErrorMessage(parsed, fallback);
+    } catch {
+      return errData;
+    }
+  }
+  if (errData.error) {
+    return formatErrorMessage(errData.error, fallback);
+  }
+  if (errData.message) {
+    if (
+      errData.message.includes('high demand') ||
+      errData.message.includes('UNAVAILABLE') ||
+      errData.code === 503
+    ) {
+      return 'The AI model is experiencing a temporary spike in traffic. Tap Retry to run again with our fallback models.';
+    }
+    return errData.message;
+  }
+  return fallback;
+}
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings'>('home');
   const [stage, setStage] = useState<'upload' | 'analyzing' | 'recommend' | 'result'>('upload');
@@ -40,6 +66,10 @@ export default function App() {
   const [isTransforming, setIsTransforming] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFailedAction, setLastFailedAction] = useState<{
+    actionName: string;
+    actionPrompt: string;
+  } | null>(null);
 
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>(getStoredSettings());
@@ -97,6 +127,7 @@ export default function App() {
   // 1. Image selected
   const handleImageSelected = async (base64: string, mimeType: string, filename?: string) => {
     setError(null);
+    setLastFailedAction(null);
     setCurrentImage({ base64, mimeType, filename });
     setStage('analyzing');
     setCurrentTab('home');
@@ -110,7 +141,8 @@ export default function App() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Analysis failed (${res.status})`);
+        const msg = formatErrorMessage(errorData, `Analysis failed (${res.status})`);
+        throw new Error(msg);
       }
 
       const data: AnalysisResult = await res.json();
@@ -118,7 +150,7 @@ export default function App() {
       setStage('recommend');
     } catch (err: any) {
       console.error('Failed to analyze image:', err);
-      setError(err?.message || 'Failed to analyze screenshot. Please try again.');
+      setError(formatErrorMessage(err, 'Failed to analyze screenshot. Please try again.'));
       setStage('upload');
     }
   };
@@ -127,6 +159,7 @@ export default function App() {
   const handleSelectAction = async (actionName: string, actionPrompt: string) => {
     if (!currentImage || !analysisResult) return;
     setError(null);
+    setLastFailedAction({ actionName, actionPrompt });
     setIsExecutingAction(true);
 
     try {
@@ -145,7 +178,8 @@ export default function App() {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Action failed (${res.status})`);
+        const msg = formatErrorMessage(errJson, `Action failed (${res.status})`);
+        throw new Error(msg);
       }
 
       const { result } = await res.json();
@@ -159,9 +193,10 @@ export default function App() {
 
       setActionResult(newExecutionResult);
       setStage('result');
+      setLastFailedAction(null);
 
       // Save to history
-      const saved = saveHistoryItem({
+      saveHistoryItem({
         title: analysisResult.title || analysisResult.contentType || 'Screenshot Action',
         contentType: analysisResult.contentType,
         detectedIntent: analysisResult.detectedIntent,
@@ -173,7 +208,7 @@ export default function App() {
       setHistoryItems(getStoredHistory());
     } catch (err: any) {
       console.error('Failed to execute action:', err);
-      setError(err?.message || 'Failed to execute action.');
+      setError(formatErrorMessage(err, 'Failed to execute action.'));
     } finally {
       setIsExecutingAction(false);
     }
@@ -200,7 +235,8 @@ export default function App() {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Transformation failed');
+        const msg = formatErrorMessage(errJson, 'Transformation failed');
+        throw new Error(msg);
       }
 
       const { result } = await res.json();
@@ -223,7 +259,7 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Failed to transform:', err);
-      setError(err?.message || 'Failed to refine output.');
+      setError(formatErrorMessage(err, 'Failed to refine output.'));
     } finally {
       setIsTransforming(false);
     }
@@ -236,6 +272,7 @@ export default function App() {
     setAnalysisResult(null);
     setActionResult(null);
     setError(null);
+    setLastFailedAction(null);
     setCurrentTab('home');
   };
 
@@ -311,21 +348,37 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 pb-16">
-        {/* Error notification bar */}
+        {/* Error notification bar with Retry support */}
         {error && (
           <div className="max-w-xl mx-auto px-4 pt-4">
-            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs sm:text-sm flex items-start gap-3 shadow-sm">
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs sm:text-sm flex items-start gap-3 shadow-sm">
+              <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div className="flex-1">
-                <p className="font-semibold">Something went wrong</p>
+                <p className="font-semibold">Notice</p>
                 <p className="mt-0.5 opacity-90">{error}</p>
               </div>
-              <button
-                onClick={() => setError(null)}
-                className="text-xs font-bold underline shrink-0 cursor-pointer"
-              >
-                Dismiss
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {lastFailedAction && (
+                  <button
+                    onClick={() =>
+                      handleSelectAction(
+                        lastFailedAction.actionName,
+                        lastFailedAction.actionPrompt
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Retry
+                  </button>
+                )}
+                <button
+                  onClick={() => setError(null)}
+                  className="text-xs font-semibold underline text-amber-700 dark:text-amber-300 cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
         )}

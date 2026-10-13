@@ -20,6 +20,41 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
   return { mimeType: 'image/png', data: dataUrlOrBase64 };
 }
 
+async function generateContentWithFallback(params: any): Promise<any> {
+  const models = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          ...params,
+          model,
+        });
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || JSON.stringify(err) || '');
+        const isTransient =
+          msg.includes('503') ||
+          msg.includes('high demand') ||
+          msg.includes('UNAVAILABLE') ||
+          msg.includes('RESOURCE_EXHAUSTED') ||
+          msg.includes('429');
+
+        if (isTransient) {
+          console.warn(`[SnapAction Vercel] Model ${model} transient error: ${msg}. Retrying/falling back...`);
+          await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 1500));
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -88,8 +123,7 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
 
     parts.push({ text: promptText });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response = await generateContentWithFallback({
       contents: [{ role: 'user', parts }],
       config: {
         systemInstruction:
@@ -101,8 +135,14 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
     return res.status(200).json({ result: resultText });
   } catch (error: any) {
     console.error('Error executing action:', error);
-    return res.status(500).json({
-      error: error?.message || 'Failed to execute action',
+    const msg = error?.message || '';
+    const userFriendlyMessage =
+      msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')
+        ? 'The AI model is experiencing a temporary spike in traffic. Please tap Try Again.'
+        : msg || 'Failed to execute action';
+
+    return res.status(503).json({
+      error: userFriendlyMessage,
     });
   }
 }
