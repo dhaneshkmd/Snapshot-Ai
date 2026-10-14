@@ -201,15 +201,16 @@ export default function App() {
     if (isLocalAction && parsedScreenshot) {
       let localOutput = '';
       if (nameLower.includes('csv')) {
-        const rows = ['Field / Item,Extracted Value'];
+        const rows = [
+          '| Field / Item | Extracted Value |',
+          '| :--- | :--- |'
+        ];
         parsedScreenshot.extractedEntities.rawEntityList.forEach((e) => {
-          rows.push(`"${e.label}","${e.value.replace(/"/g, '""')}"`);
+          rows.push(`| **${e.label}** | ${e.value.replace(/\|/g, '-')} |`);
         });
         if (parsedScreenshot.extractedEntities.prices.length > 0) {
-          rows.push('');
-          rows.push('Prices,Amount');
           parsedScreenshot.extractedEntities.prices.forEach((p, i) => {
-            rows.push(`"Item ${i + 1}","${p}"`);
+            rows.push(`| Price Entry ${i + 1} | ${p} |`);
           });
         }
         localOutput = rows.join('\n');

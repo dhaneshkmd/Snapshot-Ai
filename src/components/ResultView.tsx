@@ -14,6 +14,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { ActionExecutionResult } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ResultViewProps {
   actionResult: ActionExecutionResult;
@@ -30,6 +31,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [viewMode, setViewMode] = useState<'formatted' | 'raw'>('formatted');
   const [editedText, setEditedText] = useState(actionResult.resultText);
   const [customTransformInput, setCustomTransformInput] = useState('');
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
@@ -94,6 +96,11 @@ export const ResultView: React.FC<ResultViewProps> = ({
 
   // Transformation suggestions for action chaining
   const transformChains = [
+    {
+      label: '📊 Convert into Table',
+      prompt:
+        'Convert all information, metrics, line items, and details from this result into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category). Ensure valid Markdown table syntax.',
+    },
     { label: 'Make Shorter', prompt: 'Make this significantly shorter and more concise while keeping all core facts.' },
     { label: 'Make More Professional', prompt: 'Rewrite in an executive, high-polish, professional tone.' },
     { label: 'Turn Into LinkedIn Post', prompt: 'Adapt this into an engaging LinkedIn post with a hook and 3 hashtags.' },
@@ -137,13 +144,41 @@ export const ResultView: React.FC<ResultViewProps> = ({
               {actionResult.actionName}
             </h2>
           </div>
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            {isEditing ? 'Preview' : 'Edit'}
-          </button>
+          <div className="flex items-center gap-1.5">
+            {!isEditing && (
+              <div className="inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px] font-medium">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('formatted')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'formatted'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Table View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('raw')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'raw'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs font-semibold'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Raw
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              {isEditing ? 'Done' : 'Edit'}
+            </button>
+          </div>
         </div>
 
         {/* Content Box */}
@@ -152,7 +187,7 @@ export const ResultView: React.FC<ResultViewProps> = ({
             <div className="absolute inset-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center rounded-2xl z-10 space-y-2">
               <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Transforming result...
+                Transforming into table...
               </span>
             </div>
           )}
@@ -164,9 +199,13 @@ export const ResultView: React.FC<ResultViewProps> = ({
               rows={12}
               className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 leading-relaxed"
             />
-          ) : (
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-750 text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap selection:bg-blue-500 selection:text-white">
+          ) : viewMode === 'raw' ? (
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-750 text-xs font-mono text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap selection:bg-blue-500 selection:text-white overflow-x-auto">
               {editedText}
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-750 text-sm text-slate-800 dark:text-slate-200 leading-relaxed selection:bg-blue-500 selection:text-white overflow-hidden">
+              <MarkdownRenderer content={editedText} />
             </div>
           )}
         </div>

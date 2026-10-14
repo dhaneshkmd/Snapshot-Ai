@@ -21,6 +21,7 @@ const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
     icon: FileText,
     actions: [
       { name: 'Extract Text', prompt: 'Extract and cleanly format all text from the image verbatim.' },
+      { name: 'Convert into Table', prompt: 'Convert all data, rows, items, and values from this screenshot into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category).' },
       { name: 'Summarize', prompt: 'Provide a concise summary with the key takeaways in 3-5 bullet points.' },
       { name: 'Explain Simply', prompt: 'Explain the content of this screenshot in simple, plain English like I am 5 years old.' },
       { name: 'Translate', prompt: 'Translate all key text and meaning from this screenshot into clear English (or target language).' },

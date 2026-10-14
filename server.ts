@@ -283,7 +283,11 @@ Guidelines based on action type:
 - If a job pitch or cover letter: Write a tailored, persuasive letter matching the extracted skills and requirements.
 - If a financial/stock note: Summarize key levels, changes, takeaways, and add a brief disclaimer without speculative trading advice.
 - If a calendar or event: Structure the title, date/time, location, and brief agenda.
-- If a receipt/invoice: Present an itemized breakdown, total, date, merchant, and clean tabular CSV/data.
+- If a table or tabular data is requested (e.g. 'Convert into Table', 'Format as Table', 'Structured Table'): Output a clean, valid Markdown table with column headers:
+| Column 1 | Column 2 | Column 3 |
+| --- | --- | --- |
+| Data | Data | Data |
+Ensure proper pipe separators and line breaks so it parses as a standard table.
 - If code/troubleshooting: Explain the root cause in simple terms and provide the corrected code snippet.
 - If an article/summary: Provide structured key takeaways and actionable notes.
 - If an AI prompt: Provide a well-engineered prompt ready to paste into an LLM or image generator.

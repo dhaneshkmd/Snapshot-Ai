@@ -119,7 +119,13 @@ Context Summary: "${contextSummary || 'Extracted from screenshot'}"
 ${cleanMarkdown ? `Structured Extracted Content:\n"""\n${cleanMarkdown}\n"""\n` : ''}
 ${extractedText && !cleanMarkdown ? `Raw OCR Text:\n"""\n${extractedText}\n"""\n` : ''}
 
-Generate the complete, high-quality, practical result. Output clean Markdown directly with no unnecessary filler preamble.`;
+Generate the complete, high-quality, practical result.
+If a table or tabular data is requested (e.g. 'Convert into Table', 'Format as Table', 'Structured Table'): Output a clean, valid Markdown table with column headers:
+| Column 1 | Column 2 | Column 3 |
+| --- | --- | --- |
+| Data | Data | Data |
+Ensure proper pipe separators and line breaks so it parses as a standard table.
+Output clean Markdown directly with no unnecessary filler preamble.`;
     }
 
     parts.push({ text: promptText });
