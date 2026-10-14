@@ -12,9 +12,9 @@ export const AnalyzingView: React.FC<AnalyzingViewProps> = ({ imageThumbnail }) 
 
   useEffect(() => {
     // Fast progressive steps to keep user engaged while Gemini computes
-    const t1 = setTimeout(() => setStep1Done(true), 650);
-    const t2 = setTimeout(() => setStep2Done(true), 1400);
-    const t3 = setTimeout(() => setStep3Done(true), 2100);
+    const t1 = setTimeout(() => setStep1Done(true), 350);
+    const t2 = setTimeout(() => setStep2Done(true), 800);
+    const t3 = setTimeout(() => setStep3Done(true), 1400);
 
     return () => {
       clearTimeout(t1);

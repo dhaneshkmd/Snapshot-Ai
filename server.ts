@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -138,6 +138,7 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
       config: {
         systemInstruction,
         responseMimeType: 'application/json',
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -145,6 +146,8 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
             detectedIntent: { type: Type.STRING },
             title: { type: Type.STRING },
             summary: { type: Type.STRING },
+            cleanMarkdown: { type: Type.STRING },
+            rawText: { type: Type.STRING },
             entities: {
               type: Type.ARRAY,
               items: {
@@ -197,6 +200,8 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
             'detectedIntent',
             'title',
             'summary',
+            'cleanMarkdown',
+            'rawText',
             'entities',
             'magicAction',
             'suggestedActions',
@@ -293,6 +298,7 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
       config: {
         systemInstruction:
           'You are SnapAction AI. You produce ready-to-use, pristine action items from screenshots. Write clean, natural, formatted text. Do not wrap everything in unnecessary introductory chatter.',
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       },
     });
 

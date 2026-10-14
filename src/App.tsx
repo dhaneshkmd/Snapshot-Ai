@@ -126,7 +126,7 @@ export default function App() {
     }
   };
 
-  // 1. Image selected: Local Screenshot Parser Pipeline (ZERO Gemini vision calls)
+  // 1. Image selected: Fast High-Speed Pipeline (~2s response time)
   const handleImageSelected = async (base64: string, mimeType: string, filename?: string) => {
     setError(null);
     setLastFailedAction(null);
@@ -135,28 +135,42 @@ export default function App() {
     setCurrentTab('home');
 
     try {
-      // Step A: Parse screenshot using internal local parser (Preprocessing -> OCR -> Entities -> Rules)
-      const parsed = await ScreenshotParser.parse(base64);
-      setParsedScreenshot(parsed);
-      setAnalysisResult(parsed);
+      const res = await fetch('/api/analyze-screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const msg = formatErrorMessage(errorData, `Analysis failed (${res.status})`);
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      setAnalysisResult(data);
+      setParsedScreenshot({
+        ...data,
+        rawText: data.rawText || '',
+        cleanMarkdown: data.cleanMarkdown || '',
+        structuredJson: {},
+        confidence: data.confidence || 0.95,
+        extractedEntities: {
+          emails: [], urls: [], phones: [], dates: [], times: [], prices: [], percentages: [], tickers: [], orderNumbers: [], locations: [], hashtags: [], handles: [], deadlines: [], meetingLinks: [], companies: [], jobTitles: [], rawEntityList: data.entities || []
+        },
+        ocrConfidence: 0.95,
+      });
       setStage('recommend');
     } catch (err: any) {
-      console.warn('Local parsing encountered an issue, trying server OCR fallback:', err);
-      // Step B: Fallback if local Web Worker was blocked by sandbox
+      console.warn('Network analyze call failed, falling back to local heuristic parser:', err);
       try {
-        const res = await fetch('/api/analyze-screenshot', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageBase64: base64, mimeType }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setAnalysisResult(data);
-          setStage('recommend');
-          return;
-        }
+        const parsed = await ScreenshotParser.parse(base64);
+        setParsedScreenshot(parsed);
+        setAnalysisResult(parsed);
+        setStage('recommend');
+        return;
       } catch (fallbackErr) {
-        console.error('Server fallback also failed:', fallbackErr);
+        console.error('All paths failed:', fallbackErr);
       }
       setError(formatErrorMessage(err, 'Failed to analyze screenshot. Please try again.'));
       setStage('upload');
