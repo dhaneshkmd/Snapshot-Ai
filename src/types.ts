@@ -25,6 +25,9 @@ export interface AnalysisResult {
   magicAction: SuggestedAction;
   suggestedActions: SuggestedAction[];
   moreActions: MoreAction[];
+  rawText?: string;
+  cleanMarkdown?: string;
+  confidence?: number;
 }
 
 export interface ActionExecutionResult {

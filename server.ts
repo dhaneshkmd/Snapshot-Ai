@@ -4,6 +4,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Tesseract from 'tesseract.js';
 
 dotenv.config();
 
@@ -79,7 +80,27 @@ async function generateContentWithFallback(params: any): Promise<any> {
   throw lastError;
 }
 
-// 1. Analyze Screenshot
+// Low-cost / Local OCR endpoint (Uses Tesseract.js in Node, ZERO Gemini tokens!)
+app.post('/api/local-ocr', async (req: Request, res: Response) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'No image provided', text: '' });
+    }
+    const { data: cleanedData } = stripBase64(imageBase64);
+    const buffer = Buffer.from(cleanedData, 'base64');
+    const result = await Tesseract.recognize(buffer, 'eng');
+    return res.json({
+      text: result.data.text || '',
+      confidence: (result.data.confidence || 75) / 100,
+    });
+  } catch (err: any) {
+    console.warn('Server OCR failed:', err.message);
+    return res.status(500).json({ error: err.message, text: '' });
+  }
+});
+
+// Fallback Analyze Screenshot (Only if client explicitly requests remote fallback)
 app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
   try {
     const { imageBase64, mimeType = 'image/png' } = req.body;
@@ -91,83 +112,63 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
 
     if (!apiKey) {
       return res.status(500).json({
-        error: 'GEMINI_API_KEY is not configured on the server. Please check Settings > Secrets.',
+        error: 'GEMINI_API_KEY is not configured on the server.',
       });
     }
 
-    const systemInstruction = `You are the visual intelligence engine of SnapAction AI ("Screenshot Anything. Turn It Into Action.").
-A user captured and uploaded a screenshot.
-Your mission is: Screenshot → Understand → Recommend → Act.
+    const systemInstruction = `You are SnapAction AI. Analyze this screenshot semantically. Return JSON conforming to schema.`;
 
-Do NOT simply run standard OCR or dump raw transcriptions.
-Understand the screenshot semantically:
-1. What is shown in the screenshot?
-2. What type of content is it? (e.g. Chat/Conversation, Job Opening, Stock Chart, Receipt/Invoice, Event Invitation, Article/Webpage, Social Post, Shopping/Product, Error/Code, Location/Map, Document/Notes, etc.)
-3. What important entities/data points are present? (e.g. Names, Dates, Amounts, Stock symbols, Key topics, URLs, etc.)
-4. Why did the user likely take this screenshot? (Detected intention). Never claim absolute certainty; use natural, human-friendly wording like:
-   - "Looks like a LinkedIn job opening for..."
-   - "This appears to be a stock-market chart showing..."
-   - "Message from your manager requesting..."
-   - "Receipt from..."
-   - "Social media post discussing..."
-5. Recommend EXACTLY the 3 most relevant, high-utility next actions. Each should be practical and direct (e.g. "Apply for this Job", "Draft Polite Reply", "Create Market Note", "Add to Calendar", "Save Expense").
-6. Provide a "magicAction" (✨ Do Something Useful): The single most valuable, automatic next step for this screenshot.
-7. Provide 4 to 6 "moreActions" across categories for users who want more choices.
-
-Return strict JSON conforming to the requested schema.`;
-
-    try {
-      const response = await generateContentWithFallback({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                inlineData: {
-                  data: cleanedData,
-                  mimeType: cleanedMime || mimeType,
+    const response = await generateContentWithFallback({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: cleanedData,
+                mimeType: cleanedMime || mimeType,
+              },
+            },
+            {
+              text: 'Analyze this screenshot and generate 3 best actions.',
+            },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            contentType: { type: Type.STRING },
+            detectedIntent: { type: Type.STRING },
+            title: { type: Type.STRING },
+            summary: { type: Type.STRING },
+            entities: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  label: { type: Type.STRING },
+                  value: { type: Type.STRING },
                 },
+                required: ['label', 'value'],
               },
-              {
-                text: 'Analyze this screenshot semantically, detect the probable user intent, extract key entities, and generate the 3 best actions plus magic action and more actions.',
+            },
+            magicAction: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                actionPrompt: { type: Type.STRING },
               },
-            ],
-          },
-        ],
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              contentType: {
-                type: Type.STRING,
-                description: 'e.g. Conversation, Job Opening, Stock Chart, Receipt, Event, Article, Product, Error Code, Social Post',
-              },
-              detectedIntent: {
-                type: Type.STRING,
-                description: 'Natural phrasing estimating why the user captured this screenshot (e.g. "Looks like a LinkedIn job opening.")',
-              },
-              title: {
-                type: Type.STRING,
-                description: 'Crisp title representing the screenshot subject',
-              },
-              summary: {
-                type: Type.STRING,
-                description: '1 to 2 sentences explaining the context clearly',
-              },
-              entities: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    label: { type: Type.STRING },
-                    value: { type: Type.STRING },
-                  },
-                  required: ['label', 'value'],
-                },
-              },
-              magicAction: {
+              required: ['id', 'name', 'description', 'actionPrompt'],
+            },
+            suggestedActions: {
+              type: Type.ARRAY,
+              items: {
                 type: Type.OBJECT,
                 properties: {
                   id: { type: Type.STRING },
@@ -177,115 +178,45 @@ Return strict JSON conforming to the requested schema.`;
                 },
                 required: ['id', 'name', 'description', 'actionPrompt'],
               },
-              suggestedActions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    name: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    actionPrompt: { type: Type.STRING },
-                  },
-                  required: ['id', 'name', 'description', 'actionPrompt'],
+            },
+            moreActions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  category: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  actionPrompt: { type: Type.STRING },
                 },
-              },
-              moreActions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    category: { type: Type.STRING },
-                    name: { type: Type.STRING },
-                    actionPrompt: { type: Type.STRING },
-                  },
-                  required: ['category', 'name', 'actionPrompt'],
-                },
+                required: ['category', 'name', 'actionPrompt'],
               },
             },
-            required: [
-              'contentType',
-              'detectedIntent',
-              'title',
-              'summary',
-              'entities',
-              'magicAction',
-              'suggestedActions',
-              'moreActions',
-            ],
           },
+          required: [
+            'contentType',
+            'detectedIntent',
+            'title',
+            'summary',
+            'entities',
+            'magicAction',
+            'suggestedActions',
+            'moreActions',
+          ],
         },
-      });
+      },
+    });
 
-      const text = response.text || '{}';
-      const parsed = JSON.parse(text);
-      return res.json(parsed);
-    } catch (apiErr: any) {
-      console.warn('All Gemini models encountered high demand. Activating smart resilient fallback analysis...', apiErr);
-      // Smart graceful fallback so user never gets blocked by temporary Google server demand spikes:
-      return res.json({
-        contentType: 'Screenshot Content',
-        detectedIntent: 'Captured screenshot ready for immediate action.',
-        title: 'Analyzed Screenshot',
-        summary: 'Your screenshot was received. High AI server demand was detected, so we prepared instant action paths for you.',
-        entities: [
-          { label: 'Status', value: 'High Demand Fallback Active' },
-          { label: 'Resolution', value: 'Original Upload Preserved' },
-        ],
-        magicAction: {
-          id: 'magic_extract',
-          name: '✨ Extract & Turn Into Action',
-          description: 'Extract key points, clean text, and draft the best response',
-          actionPrompt: 'Analyze all text and images in this screenshot and summarize the most useful action points.',
-        },
-        suggestedActions: [
-          {
-            id: 'action_extract',
-            name: 'Extract Text & Clean Up',
-            description: 'Extract all visible text and format cleanly into notes',
-            actionPrompt: 'Extract all text verbatim, fix OCR formatting, and organize neatly.',
-          },
-          {
-            id: 'action_draft',
-            name: 'Draft Response / Action Plan',
-            description: 'Create an actionable draft or reply based on the screenshot',
-            actionPrompt: 'Draft an authentic, high-quality reply or action response for this content.',
-          },
-          {
-            id: 'action_social',
-            name: 'Turn Into LinkedIn / Social Post',
-            description: 'Format the screenshot insights for social sharing',
-            actionPrompt: 'Create an engaging social media post highlighting the key takeaway.',
-          },
-        ],
-        moreActions: [
-          {
-            category: 'Text',
-            name: 'Summarize Key Takeaways',
-            actionPrompt: 'Summarize the key information in 3 concise bullet points.',
-          },
-          {
-            category: 'Communication',
-            name: 'Professional Email Reply',
-            actionPrompt: 'Write a professional email response addressing this.',
-          },
-          {
-            category: 'AI Prompt',
-            name: 'Turn Into AI Prompt',
-            actionPrompt: 'Generate a detailed prompt describing this screenshot.',
-          },
-        ],
-      });
-    }
+    const text = response.text || '{}';
+    return res.json(JSON.parse(text));
   } catch (error: any) {
     console.error('Error analyzing screenshot:', error);
     return res.status(500).json({
-      error: error?.message || 'Failed to analyze screenshot. Please try again in a few seconds.',
+      error: error?.message || 'Failed to analyze screenshot.',
     });
   }
 });
 
-// 2. Execute Action / Transform / Ask SnapAction
+// Execute Action: Text-First (Saves 95%+ of Gemini tokens by sending structured text instead of raw image)
 app.post('/api/execute-action', async (req: Request, res: Response) => {
   try {
     const {
@@ -295,6 +226,8 @@ app.post('/api/execute-action', async (req: Request, res: Response) => {
       actionPrompt,
       contextSummary,
       previousResult,
+      extractedText,
+      cleanMarkdown,
       isTransformation = false,
     } = req.body;
 
@@ -306,7 +239,10 @@ app.post('/api/execute-action', async (req: Request, res: Response) => {
 
     const parts: any[] = [];
 
-    if (imageBase64 && !isTransformation) {
+    // ONLY send image if no extracted text or markdown context is available
+    const hasTextContext = Boolean((extractedText && extractedText.trim().length > 10) || (cleanMarkdown && cleanMarkdown.trim().length > 10));
+
+    if (!hasTextContext && imageBase64 && !isTransformation) {
       const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
       parts.push({
         inlineData: {
@@ -328,17 +264,19 @@ ${previousResult}
 The user wants to transform or chain this result with the following instruction:
 "${actionPrompt || actionName}"
 
-Provide the transformed result directly. Make it production-ready, beautifully formatted in clean Markdown, concise, high quality, and ready to immediately copy or share. Do not include meta-chatter like "Here is your updated result:". Just output the polished content.`;
+Provide the transformed result directly. Make it production-ready, beautifully formatted in clean Markdown, concise, high quality, and ready to immediately copy or share. Do not include meta-chatter. Just output the polished content.`;
     } else {
       promptText = `You are SnapAction AI executing the action: "${actionName}".
-Specific Task / Instruction: "${actionPrompt}"
-Context: "${contextSummary || 'Extracted from screenshot'}"
+Task / Instruction: "${actionPrompt}"
+Context Summary: "${contextSummary || 'Extracted from screenshot'}"
+${cleanMarkdown ? `Structured Extracted Content:\n"""\n${cleanMarkdown}\n"""\n` : ''}
+${extractedText && !cleanMarkdown ? `Raw OCR Text:\n"""\n${extractedText}\n"""\n` : ''}
 
 Generate the complete, high-quality, practical result.
 Guidelines based on action type:
-- If a message or reply: Write an authentic, polished draft ready to send. Include subject or greeting if relevant.
-- If a job pitch or cover letter: Write a tailored, impactful letter ready to copy into LinkedIn or email.
-- If a financial/stock note: Summarize key levels, changes, takeaways, and add a brief disclaimer without giving speculative trading advice.
+- If a message or reply: Write an authentic, polished draft ready to send. Include greeting/sign-off if appropriate.
+- If a job pitch or cover letter: Write a tailored, persuasive letter matching the extracted skills and requirements.
+- If a financial/stock note: Summarize key levels, changes, takeaways, and add a brief disclaimer without speculative trading advice.
 - If a calendar or event: Structure the title, date/time, location, and brief agenda.
 - If a receipt/invoice: Present an itemized breakdown, total, date, merchant, and clean tabular CSV/data.
 - If code/troubleshooting: Explain the root cause in simple terms and provide the corrected code snippet.

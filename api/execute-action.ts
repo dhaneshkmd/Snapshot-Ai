@@ -72,6 +72,8 @@ export default async function handler(req: any, res: any) {
       actionPrompt,
       contextSummary,
       previousResult,
+      extractedText,
+      cleanMarkdown,
       isTransformation = false,
     } = req.body || {};
 
@@ -82,8 +84,12 @@ export default async function handler(req: any, res: any) {
     }
 
     const parts: any[] = [];
+    const hasTextContext = Boolean(
+      (extractedText && extractedText.trim().length > 10) ||
+      (cleanMarkdown && cleanMarkdown.trim().length > 10)
+    );
 
-    if (imageBase64 && !isTransformation) {
+    if (!hasTextContext && imageBase64 && !isTransformation) {
       const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
       parts.push({
         inlineData: {
@@ -105,24 +111,15 @@ ${previousResult}
 The user wants to transform or chain this result with the following instruction:
 "${actionPrompt || actionName}"
 
-Provide the transformed result directly. Make it production-ready, beautifully formatted in clean Markdown, concise, high quality, and ready to immediately copy or share. Do not include meta-chatter like "Here is your updated result:". Just output the polished content.`;
+Provide the transformed result directly. Make it production-ready, beautifully formatted in clean Markdown, concise, high quality, and ready to immediately copy or share. Do not include meta-chatter. Just output the polished content.`;
     } else {
       promptText = `You are SnapAction AI executing the action: "${actionName}".
-Specific Task / Instruction: "${actionPrompt}"
-Context: "${contextSummary || 'Extracted from screenshot'}"
+Task / Instruction: "${actionPrompt}"
+Context Summary: "${contextSummary || 'Extracted from screenshot'}"
+${cleanMarkdown ? `Structured Extracted Content:\n"""\n${cleanMarkdown}\n"""\n` : ''}
+${extractedText && !cleanMarkdown ? `Raw OCR Text:\n"""\n${extractedText}\n"""\n` : ''}
 
-Generate the complete, high-quality, practical result.
-Guidelines based on action type:
-- If a message or reply: Write an authentic, polished draft ready to send. Include subject or greeting if relevant.
-- If a job pitch or cover letter: Write a tailored, impactful letter ready to copy into LinkedIn or email.
-- If a financial/stock note: Summarize key levels, changes, takeaways, and add a brief disclaimer without giving speculative trading advice.
-- If a calendar or event: Structure the title, date/time, location, and brief agenda.
-- If a receipt/invoice: Present an itemized breakdown, total, date, merchant, and clean tabular CSV/data.
-- If code/troubleshooting: Explain the root cause in simple terms and provide the corrected code snippet.
-- If an article/summary: Provide structured key takeaways and actionable notes.
-- If an AI prompt: Provide a well-engineered prompt ready to paste into an LLM or image generator.
-
-Output clean Markdown directly with no unnecessary filler preamble.`;
+Generate the complete, high-quality, practical result. Output clean Markdown directly with no unnecessary filler preamble.`;
     }
 
     parts.push({ text: promptText });

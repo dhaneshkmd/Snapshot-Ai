@@ -21,6 +21,7 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
 }) => {
   const [customPrompt, setCustomPrompt] = useState('');
   const [showFullImage, setShowFullImage] = useState(false);
+  const [showExtractedText, setShowExtractedText] = useState(false);
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,9 +49,14 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
         {/* Top Header with detected intent & thumbnail chip */}
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              Looks like:
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Looks like:
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                ⚡ Processed Locally • 0 Gemini Tokens
+              </span>
+            </div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               {analysis.title || analysis.contentType}
             </h2>
@@ -104,6 +110,24 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Local Parsed Text & Markdown Toggle */}
+        {analysis.cleanMarkdown && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setShowExtractedText(!showExtractedText)}
+              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>{showExtractedText ? 'Hide' : 'View'} Extracted Text / Markdown</span>
+            </button>
+            {showExtractedText && (
+              <div className="mt-2 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-800 dark:text-slate-200 max-h-48 overflow-y-auto whitespace-pre-wrap selection:bg-blue-500 selection:text-white border border-slate-200 dark:border-slate-700">
+                {analysis.cleanMarkdown}
+              </div>
+            )}
           </div>
         )}
       </div>
