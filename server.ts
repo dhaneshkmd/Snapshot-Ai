@@ -287,7 +287,18 @@ Guidelines based on action type:
 | Column 1 | Column 2 | Column 3 |
 | --- | --- | --- |
 | Data | Data | Data |
-Ensure proper pipe separators and line breaks so it parses as a standard table.
+- If SEO or keywords is requested: Generate:
+  1. Primary Focus Keyword & Search Intent (Informational, Transactional, Navigational)
+  2. Secondary & LSI Long-tail Keywords (with search intent & relevance)
+  3. Optimized Meta Title (strictly under 60 characters, high CTR)
+  4. Optimized Meta Description (strictly under 160 characters, with hook & CTA)
+  5. Recommended URL slug and H1/H2 Heading architecture
+  6. Content Keyword Density & Placement Recommendations
+- If Title, Caption, or Hashtags is requested: Generate:
+  1. 3 High-Converting Titles / Hooks (curious, benefit-driven, clickable)
+  2. Engaging Social Media Caption (formatted with storytelling hook, bullet points, emojis, and clear Call to Action)
+- If JSON Prompt Script or developer payload is requested: Output a developer-ready JSON Prompt Script configuration formatted in a clean json code block containing:
+  prompt_name, version, target_model, system_instruction, task_definition, input_variables, output_format, response_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), curl_test_snippet, and developer_notes.
 - If code/troubleshooting: Explain the root cause in simple terms and provide the corrected code snippet.
 - If an article/summary: Provide structured key takeaways and actionable notes.
 - If an AI prompt: Provide a well-engineered prompt ready to paste into an LLM or image generator.

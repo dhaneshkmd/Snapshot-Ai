@@ -101,6 +101,21 @@ export const ResultView: React.FC<ResultViewProps> = ({
       prompt:
         'Convert all information, metrics, line items, and details from this result into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category). Ensure valid Markdown table syntax.',
     },
+    {
+      label: '🔍 SEO & Keywords',
+      prompt:
+        'Analyze this content and generate a complete SEO optimization kit: Focus Primary Keyword, Secondary & LSI Keywords, Search Intent, Meta Title (<60 chars), Meta Description (<160 chars), and Content Keyword Placement guidelines.',
+    },
+    {
+      label: '🏷️ Title, Caption & Hashtags',
+      prompt:
+        'Create 3 catchy high-converting Titles, an engaging Caption formatted with emojis and clear line breaks, a Call to Action (CTA), and 20 curated high-ranking Hashtags (broad, niche, and trending).',
+    },
+    {
+      label: '⚙️ JSON Prompt Script',
+      prompt:
+        'Convert this content into a developer-ready JSON Prompt Script with system_instruction, task_description, input_variables, output_schema, few_shot_examples, and parameter recommendations in valid JSON.',
+    },
     { label: 'Make Shorter', prompt: 'Make this significantly shorter and more concise while keeping all core facts.' },
     { label: 'Make More Professional', prompt: 'Rewrite in an executive, high-polish, professional tone.' },
     { label: 'Turn Into LinkedIn Post', prompt: 'Adapt this into an engaging LinkedIn post with a hook and 3 hashtags.' },

@@ -36,10 +36,12 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
 
   // Quick prompt chip inspirations based on content type
   const promptSuggestions = [
+    'Generate Title, Caption & Hashtags',
+    'Extract SEO & Keywords',
+    'Create JSON Prompt Script',
+    'Convert into Table',
     'Explain this to my manager',
     'Turn this into a LinkedIn post',
-    'Explain this to a beginner',
-    'Draft an email responding to this',
   ];
 
   return (

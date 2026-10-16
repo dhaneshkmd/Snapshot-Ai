@@ -264,6 +264,41 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
       continue;
     }
 
+    // Fenced Code Blocks (e.g. ```json or ```typescript)
+    if (line.startsWith('```')) {
+      const language = line.replace(/^```/, '').trim() || 'code';
+      let codeContent = '';
+      let endIdx = cursor + 1;
+      while (endIdx < rawLines.length && !rawLines[endIdx].trim().startsWith('```')) {
+        codeContent += rawLines[endIdx] + '\n';
+        endIdx++;
+      }
+      const codeSnippet = codeContent.trimEnd();
+
+      blocks.push(
+        <div key={`code-block-${cursor}`} className="my-3 rounded-2xl bg-slate-900 border border-slate-800 text-slate-100 overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-3.5 py-2 bg-slate-950/80 border-b border-slate-800 text-xs text-slate-400">
+            <span className="font-mono uppercase font-bold text-[11px] text-blue-400 tracking-wider">{language}</span>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(codeSnippet);
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Copy Code
+            </button>
+          </div>
+          <pre className="p-4 text-xs font-mono overflow-x-auto text-emerald-400 dark:text-emerald-300 leading-relaxed selection:bg-emerald-800 selection:text-white">
+            {codeSnippet}
+          </pre>
+        </div>
+      );
+
+      cursor = endIdx < rawLines.length ? endIdx + 1 : rawLines.length;
+      continue;
+    }
+
     // Standard markdown elements (Headings, bullet points, blockquotes, plain text)
     if (line.startsWith('# ')) {
       blocks.push(

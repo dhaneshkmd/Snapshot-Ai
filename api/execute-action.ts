@@ -125,6 +125,19 @@ If a table or tabular data is requested (e.g. 'Convert into Table', 'Format as T
 | --- | --- | --- |
 | Data | Data | Data |
 Ensure proper pipe separators and line breaks so it parses as a standard table.
+- If SEO or keywords is requested: Generate:
+  1. Primary Focus Keyword & Search Intent (Informational, Transactional, Navigational)
+  2. Secondary & LSI Long-tail Keywords (with search intent & relevance)
+  3. Optimized Meta Title (strictly under 60 characters, high CTR)
+  4. Optimized Meta Description (strictly under 160 characters, with hook & CTA)
+  5. Recommended URL slug and H1/H2 Heading architecture
+  6. Content Keyword Density & Placement Recommendations
+- If Title, Caption, or Hashtags is requested: Generate:
+  1. 3 High-Converting Titles / Hooks (curious, benefit-driven, clickable)
+  2. Engaging Social Media Caption (formatted with storytelling hook, bullet points, emojis, and clear Call to Action)
+  3. 20 Curated Hashtags categorized into High-Volume (#...), Niche Specific (#...), and Trending/Community (#...)
+- If JSON Prompt Script or developer payload is requested: Output a developer-ready JSON Prompt Script configuration formatted in a clean json code block containing:
+  prompt_name, version, target_model, system_instruction, task_definition, input_variables, output_format, response_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), curl_test_snippet, and developer_notes.
 Output clean Markdown directly with no unnecessary filler preamble.`;
     }
 

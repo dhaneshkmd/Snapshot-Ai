@@ -1,5 +1,23 @@
 import React, { useState } from 'react';
-import { X, Search, Sparkles, ArrowRight, MessageSquare, Briefcase, FileText, Share2, TrendingUp, Code2, Calendar, ShoppingBag, Receipt, MapPin } from 'lucide-react';
+import {
+  X,
+  Search,
+  Sparkles,
+  ArrowRight,
+  MessageSquare,
+  Briefcase,
+  FileText,
+  Share2,
+  TrendingUp,
+  Code2,
+  Calendar,
+  ShoppingBag,
+  Receipt,
+  MapPin,
+  Globe,
+  Hash,
+  Terminal,
+} from 'lucide-react';
 import { MoreAction } from '../types';
 
 interface MoreActionsModalProps {
@@ -17,16 +35,102 @@ interface PredefinedActionCategory {
 
 const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
   {
-    name: 'Text & Notes',
+    name: 'SEO & Keywords',
+    icon: Globe,
+    actions: [
+      {
+        name: 'SEO Keywords & Search Intent',
+        prompt:
+          'Analyze this screenshot and generate primary high-volume keywords, secondary long-tail keywords, search intent (Informational, Commercial, or Transactional), and target user search queries.',
+      },
+      {
+        name: 'Meta Title & Description',
+        prompt:
+          'Generate 3 SEO-optimized Title Tags (strictly under 60 characters) and 3 Meta Descriptions (strictly under 160 characters) with high click-through rate (CTR) appeal.',
+      },
+      {
+        name: 'Full SEO Optimization Package',
+        prompt:
+          'Generate a complete SEO optimization package: Focus Keyword, Secondary & LSI Keywords, recommended URL slug, H1/H2 header architecture, meta tags, and keyword placement recommendations.',
+      },
+      {
+        name: 'Keyword Density & Content Outline',
+        prompt:
+          'Extract all key terms and generate an SEO content outline with recommended target keyword frequencies and heading structure.',
+      },
+    ],
+  },
+  {
+    name: 'Social & Viral Media',
+    icon: Hash,
+    actions: [
+      {
+        name: 'Title, Caption & Hashtags',
+        prompt:
+          'Generate 3 catchy high-converting Titles, an engaging Caption formatted with storytelling, emojis, and clear Call to Action (CTA), and 20 curated Hashtags categorized into broad, niche, and trending.',
+      },
+      {
+        name: 'Viral Hooks & Short Captions',
+        prompt:
+          'Generate 5 viral hook titles and punchy short-form captions with trending hashtags for TikTok, Instagram Reels, and YouTube Shorts.',
+      },
+      {
+        name: 'YouTube Title, Description & Tags',
+        prompt:
+          'Generate 3 high-CTR YouTube video titles, an optimized video description with timestamp chapters, and SEO video tags.',
+      },
+      {
+        name: 'Create LinkedIn Post',
+        prompt:
+          'Turn this screenshot into an insightful LinkedIn post with a strong hook, structured body, and relevant hashtags.',
+      },
+      {
+        name: 'Create X / Twitter Thread',
+        prompt:
+          'Write a punchy, engaging X/Twitter thread (3-5 tweets) with strong hooks and hashtags based on this screenshot.',
+      },
+    ],
+  },
+  {
+    name: 'Developer & JSON Prompt Script',
+    icon: Terminal,
+    actions: [
+      {
+        name: 'JSON Prompt Script Developer',
+        prompt:
+          'Generate a developer-grade JSON Prompt Script specification in valid JSON: system_instruction, task_description, input_variables, output_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), and cURL test script for building LLM applications.',
+      },
+      {
+        name: 'Structured JSON Schema Payload',
+        prompt:
+          'Convert this screenshot data into a production-ready JSON schema payload accompanied by a TypeScript interface definition.',
+      },
+      {
+        name: 'API Automation Script (cURL & Node.js)',
+        prompt:
+          'Generate an API automation script (cURL request and Node.js fetch script) simulating the interaction or data workflow shown in this screenshot.',
+      },
+      {
+        name: 'Turn into AI Studio Prompt',
+        prompt:
+          'Create an optimized, detailed system prompt and user prompt blueprint based on this screenshot.',
+      },
+    ],
+  },
+  {
+    name: 'Text & Tables',
     icon: FileText,
     actions: [
       { name: 'Extract Text', prompt: 'Extract and cleanly format all text from the image verbatim.' },
-      { name: 'Convert into Table', prompt: 'Convert all data, rows, items, and values from this screenshot into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category).' },
+      {
+        name: 'Convert into Table',
+        prompt:
+          'Convert all data, rows, items, and values from this screenshot into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category).',
+      },
       { name: 'Summarize', prompt: 'Provide a concise summary with the key takeaways in 3-5 bullet points.' },
       { name: 'Explain Simply', prompt: 'Explain the content of this screenshot in simple, plain English like I am 5 years old.' },
       { name: 'Translate', prompt: 'Translate all key text and meaning from this screenshot into clear English (or target language).' },
       { name: 'Turn Into Notes', prompt: 'Convert the information in this screenshot into organized study/work notes with headers and bullets.' },
-      { name: 'Clean Extracted Text', prompt: 'Extract the text and remove OCR noise, fixing grammar, layout, and typos cleanly.' },
     ],
   },
   {
@@ -51,16 +155,6 @@ const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
     ],
   },
   {
-    name: 'Social Media',
-    icon: Share2,
-    actions: [
-      { name: 'Create LinkedIn Post', prompt: 'Turn this screenshot into an insightful LinkedIn post with a strong hook, body, and relevant hashtags.' },
-      { name: 'Create X / Twitter Post', prompt: 'Write a punchy, engaging X/Twitter thread or single tweet based on this screenshot.' },
-      { name: 'Create Instagram Caption', prompt: 'Write an engaging Instagram caption with storytelling and hashtags.' },
-      { name: 'Professional Commentary', prompt: 'Write an authoritative industry commentary discussing the development shown.' },
-    ],
-  },
-  {
     name: 'Stocks & Finance',
     icon: TrendingUp,
     actions: [
@@ -79,30 +173,12 @@ const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
     ],
   },
   {
-    name: 'Events & Plans',
-    icon: Calendar,
-    actions: [
-      { name: 'Add to Calendar Details', prompt: 'Extract the event title, start/end date and time, venue, and description.' },
-      { name: 'Create Reminder', prompt: 'Draft a clear reminder note with timing and preparation details.' },
-      { name: 'RSVP Message', prompt: 'Draft a friendly RSVP confirmation message for the organizer.' },
-    ],
-  },
-  {
     name: 'Code & Errors',
     icon: Code2,
     actions: [
       { name: 'Explain Error', prompt: 'Explain the root cause of this error message in simple language.' },
       { name: 'Generate Corrected Code', prompt: 'Provide the corrected code snippet that resolves the issue.' },
       { name: 'Debug Prompt', prompt: 'Generate a high-context prompt to paste into a developer debugging assistant.' },
-    ],
-  },
-  {
-    name: 'AI Prompts',
-    icon: Sparkles,
-    actions: [
-      { name: 'Turn into AI Studio Prompt', prompt: 'Create an optimized, detailed system prompt based on this screenshot.' },
-      { name: 'Image Generation Prompt', prompt: 'Create a vivid Midjourney/Gemini prompt describing the visual aesthetics here.' },
-      { name: 'Coding Prompt', prompt: 'Create a comprehensive prompt for building the feature or UI depicted in the screenshot.' },
     ],
   },
 ];
