@@ -125,6 +125,15 @@ If a table or tabular data is requested (e.g. 'Convert into Table', 'Format as T
 | --- | --- | --- |
 | Data | Data | Data |
 Ensure proper pipe separators and line breaks so it parses as a standard table.
+- If CV Keywords, ATS Keywords, or Resume Sentences is requested: Generate a complete CV/resume optimization kit:
+  1. ATS Keyword & Skill Extraction Table:
+     | ATS Keyword / Skill | Category (Core / Technical / Tool / Soft) | Recommended Similar / Adjacent Skills | Ready-to-Paste CV Sentence (XYZ Formula) |
+     | :--- | :--- | :--- | :--- |
+  2. Recommended Similar & Adjacent Skills: Suggest 3-5 in-demand complementary tools and industry frameworks that recruiters expect alongside these keywords to make the CV stand out.
+  3. Ready-to-Integrate Resume Sections:
+     - Keyword-Dense Professional Summary / Headline (2-3 punchy sentences)
+     - Core Competencies Keyword Matrix (categorized for ATS scanners)
+     - High-Impact Work Experience Bullets (using strong action verbs like Spearheaded, Engineered, Accelerated, with quantifiable metrics)
 - If SEO or keywords is requested: Generate:
   1. Primary Focus Keyword & Search Intent (Informational, Transactional, Navigational)
   2. Secondary & LSI Long-tail Keywords (with search intent & relevance)
@@ -136,6 +145,22 @@ Ensure proper pipe separators and line breaks so it parses as a standard table.
   1. 3 High-Converting Titles / Hooks (curious, benefit-driven, clickable)
   2. Engaging Social Media Caption (formatted with storytelling hook, bullet points, emojis, and clear Call to Action)
   3. 20 Curated Hashtags categorized into High-Volume (#...), Niche Specific (#...), and Trending/Community (#...)
+- If Image JSON Prompt is requested: Output a developer-ready Image Generation JSON Prompt specification formatted in a clean json code block containing:
+  model_target (Flux.1-Dev / Midjourney v6 / Imagen 3 / DALL-E 3),
+  prompt (ultra-detailed descriptive prompt specifying composition, textures, artistic style, camera angle, and lighting based on the screenshot),
+  negative_prompt (unwanted artifacts, blur, bad anatomy, text, distortions),
+  technical_attributes (camera_lens, lighting_style, color_palette, resolution),
+  parameters (aspect_ratio, cfg_scale, steps, sampler, seed),
+  and api_request_payload (standard ready-to-call REST API payload format).
+- If Video JSON Prompt is requested: Output a developer-ready Video Generation JSON Prompt specification formatted in a clean json code block containing:
+  model_target (Sora / Runway Gen-3 Alpha / Kling 1.5 / Luma Dream Machine),
+  scene_description (detailed cinematic scenario and subject kinematics based on the screenshot),
+  camera_motion (pan, tilt, zoom, dolly, tracking speed, lens focal length),
+  motion_pacing (tempo, velocity, physical dynamics),
+  parameters (duration_seconds, fps, aspect_ratio, resolution, motion_intensity),
+  timeline_keyframes (0s, 2.5s, 5s breakdown describing evolution),
+  audio_prompt (sound design and atmosphere),
+  and api_request_payload (standard ready-to-call REST API payload format).
 - If JSON Prompt Script or developer payload is requested: Output a developer-ready JSON Prompt Script configuration formatted in a clean json code block containing:
   prompt_name, version, target_model, system_instruction, task_definition, input_variables, output_format, response_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), curl_test_snippet, and developer_notes.
 Output clean Markdown directly with no unnecessary filler preamble.`;

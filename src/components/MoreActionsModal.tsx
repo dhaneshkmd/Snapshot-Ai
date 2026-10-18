@@ -17,6 +17,8 @@ import {
   Globe,
   Hash,
   Terminal,
+  Video,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { MoreAction } from '../types';
 
@@ -92,13 +94,49 @@ const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
     ],
   },
   {
+    name: 'Image & Video JSON Prompts',
+    icon: Video,
+    actions: [
+      {
+        name: 'Image JSON Prompt (Flux / Midjourney / DALL-E)',
+        prompt:
+          'Generate a developer-grade Image Generation JSON Prompt specification in valid JSON: model_target (Flux.1 / Midjourney v6 / Imagen 3), prompt (composition, lighting, style, camera angle, textures), negative_prompt, technical_attributes (camera_lens, lighting_style, color_palette), parameters (aspect_ratio, cfg_scale, steps, sampler), and api_request_payload based on this screenshot.',
+      },
+      {
+        name: 'Video JSON Prompt (Sora / Runway / Kling)',
+        prompt:
+          'Generate a developer-grade Video Generation JSON Prompt specification in valid JSON: model_target (Sora / Runway Gen-3 / Kling 1.5), scene_description, camera_motion (pan, tilt, zoom, dolly), motion_pacing, parameters (duration_seconds, fps, aspect_ratio, motion_intensity), timeline_keyframes (0s, 2.5s, 5s), audio_prompt, and api_request_payload based on this screenshot.',
+      },
+      {
+        name: 'ComfyUI Workflow JSON Prompt',
+        prompt:
+          'Generate a ComfyUI node-compatible JSON prompt payload configuring checkpoint, positive conditioning, negative conditioning, and KSampler settings for this visual content.',
+      },
+      {
+        name: 'Cinematic Camera Direction JSON',
+        prompt:
+          'Generate a cinematic camera direction JSON prompt specifying shot type, lens focal length, aperture, lighting rig, motion trajectory, and color grading based on this screenshot.',
+      },
+    ],
+  },
+  {
     name: 'Developer & JSON Prompt Script',
     icon: Terminal,
     actions: [
       {
         name: 'JSON Prompt Script Developer',
         prompt:
-          'Generate a developer-grade JSON Prompt Script specification in valid JSON: system_instruction, task_description, input_variables, output_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), and cURL test script for building LLM applications.',
+          'Generate a developer-grade JSON Prompt Script specification in valid JSON: system_instruction, task_definition, input_variables, output_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), and cURL test script for building LLM applications.',
+      },
+      {
+        name: 'Image JSON Prompt',
+        prompt:
+          'Generate a complete Image Generation JSON Prompt specification (model_target, prompt, negative_prompt, camera, lighting, aspect_ratio, and api_request_payload) based on this screenshot.',
+      },
+      {
+        name: 'Video JSON Prompt',
+        prompt:
+          'Generate a complete Video Generation JSON Prompt specification (model_target, scene_description, camera_motion, timeline_keyframes, and api_request_payload) based on this screenshot.',
       },
       {
         name: 'Structured JSON Schema Payload',
@@ -148,6 +186,16 @@ const GLOBAL_CATEGORIES: PredefinedActionCategory[] = [
     name: 'Jobs & Career',
     icon: Briefcase,
     actions: [
+      {
+        name: 'CV Keywords & Resume Sentences',
+        prompt:
+          'Extract all critical SEO/ATS keywords from this job vacancy, identify complementary similar/adjacent skills that enhance the profile, and convert each keyword into ready-to-paste, accomplishment-driven CV sentences with quantifiable metrics.',
+      },
+      {
+        name: 'ATS Keyword Audit & Match',
+        prompt:
+          'Provide a complete ATS keyword match breakdown: mandatory keywords, preferred keywords, recommended adjacent skills, and a tailored resume summary statement.',
+      },
       { name: 'Tailor Resume Pitch', prompt: 'Create bullet points tailored to the job requirements shown in this screenshot.' },
       { name: 'Create Cover Letter', prompt: 'Write a persuasive, customized cover letter for this position.' },
       { name: 'Generate Interview Questions', prompt: 'Generate top 8 likely interview questions based on the role and how to answer them.' },

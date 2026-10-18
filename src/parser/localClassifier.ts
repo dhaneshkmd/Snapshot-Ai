@@ -152,12 +152,20 @@ export function classifyScreenshot(
         title: `${role} Opportunity`,
         summary: 'Job listing detailing qualifications, responsibilities, and application criteria.',
         magicAction: {
-          id: 'prepare_application',
-          name: '✨ Prepare Application Pitch',
-          description: 'Generate high-impact talking points matching the role requirements',
-          actionPrompt: 'Create a tailored application pitch and key talking points for this job opening.',
+          id: 'cv_keywords_sentences',
+          name: '✨ CV Keywords & Resume Sentences',
+          description: 'Extract ATS keywords, suggest similar skills, and craft ready-to-paste CV impact sentences',
+          actionPrompt:
+            'Extract essential ATS keywords from this job vacancy, enrich with high-value complementary skills, and convert each into high-impact accomplishment sentences ready to integrate into a CV/resume.',
         },
         suggestedActions: [
+          {
+            id: 'cv_keywords_sentences',
+            name: 'CV Keywords & Resume Sentences',
+            description: 'Extract ATS keywords, similar skills & impact sentences',
+            actionPrompt:
+              'Analyze this job vacancy screenshot. Extract all critical ATS keywords and required skills, suggest valuable adjacent/similar skills, and convert each into polished, ready-to-paste resume action sentences.',
+          },
           {
             id: 'cover_letter',
             name: 'Create Cover Letter',
@@ -167,17 +175,17 @@ export function classifyScreenshot(
           {
             id: 'tailor_resume',
             name: 'Tailor Resume Pitch',
-            description: 'Align experience bullets with the listed requirements',
+            description: 'Align experience bullets with listed requirements',
             actionPrompt: 'Draft resume bullet points tailored to the job requirements in this screenshot.',
-          },
-          {
-            id: 'save_job_details',
-            name: 'Extract Job Details (Instant)',
-            description: 'Extract skills, qualifications, and deadline into notes',
-            actionPrompt: 'Extract and structure all job details, qualifications, and deadlines.',
           },
         ],
         moreActions: [
+          {
+            category: 'Career',
+            name: 'CV Keywords & Resume Sentences',
+            actionPrompt:
+              'Extract all ATS keywords from this job post, add complementary similar skills, and generate ready-to-paste CV sentences.',
+          },
           { category: 'Career', name: 'Generate Interview Questions', actionPrompt: 'Generate top 8 likely interview questions.' },
           { category: 'Career', name: 'Identify Required Skills', actionPrompt: 'Extract required hard and soft skills checklist.' },
           { category: 'Communication', name: 'LinkedIn Connection Message', actionPrompt: 'Write a warm outreach note to the recruiter.' },

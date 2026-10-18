@@ -102,6 +102,11 @@ export const ResultView: React.FC<ResultViewProps> = ({
         'Convert all information, metrics, line items, and details from this result into a clean, well-formatted Markdown table with clear column headers (e.g. Item, Description, Value, Category). Ensure valid Markdown table syntax.',
     },
     {
+      label: '🎯 CV Keywords & Sentences',
+      prompt:
+        'Extract all critical SEO and ATS keywords from this job vacancy, enrich with high-value complementary similar skills, and convert each into ready-to-paste, accomplishment-driven CV sentences with quantifiable metrics.',
+    },
+    {
       label: '🔍 SEO & Keywords',
       prompt:
         'Analyze this content and generate a complete SEO optimization kit: Focus Primary Keyword, Secondary & LSI Keywords, Search Intent, Meta Title (<60 chars), Meta Description (<160 chars), and Content Keyword Placement guidelines.',
@@ -115,6 +120,16 @@ export const ResultView: React.FC<ResultViewProps> = ({
       label: '⚙️ JSON Prompt Script',
       prompt:
         'Convert this content into a developer-ready JSON Prompt Script with system_instruction, task_description, input_variables, output_schema, few_shot_examples, and parameter recommendations in valid JSON.',
+    },
+    {
+      label: '🖼️ Image JSON Prompt',
+      prompt:
+        'Convert this content into a developer-ready Image Generation JSON Prompt specification in valid JSON: model_target (Flux.1 / Midjourney v6 / Imagen 3), prompt (composition, lighting, style, camera angle, textures), negative_prompt, technical_attributes (camera_lens, lighting_style, color_palette), parameters (aspect_ratio, cfg_scale, steps, sampler), and api_request_payload.',
+    },
+    {
+      label: '🎬 Video JSON Prompt',
+      prompt:
+        'Convert this content into a developer-ready Video Generation JSON Prompt specification in valid JSON: model_target (Sora / Runway Gen-3 / Kling 1.5), scene_description, camera_motion (pan, tilt, zoom, dolly), motion_pacing, parameters (duration_seconds, fps, aspect_ratio, motion_intensity), timeline_keyframes (0s, 2.5s, 5s), audio_prompt, and api_request_payload.',
     },
     { label: 'Make Shorter', prompt: 'Make this significantly shorter and more concise while keeping all core facts.' },
     { label: 'Make More Professional', prompt: 'Rewrite in an executive, high-polish, professional tone.' },
