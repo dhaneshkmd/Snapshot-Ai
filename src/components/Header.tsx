@@ -1,5 +1,6 @@
 import React from 'react';
-import { Sparkles, Clock, Settings as SettingsIcon, Home, Sun, Moon } from 'lucide-react';
+import { Sparkles, Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe } from 'lucide-react';
+import { LanguageOption } from '../modules/languages/languageData';
 
 interface HeaderProps {
   currentTab: 'home' | 'history' | 'settings';
@@ -8,6 +9,8 @@ interface HeaderProps {
   darkMode: boolean;
   onToggleTheme: () => void;
   onResetToHome: () => void;
+  globalLanguage: LanguageOption;
+  onOpenLanguageSelector: () => void;
   pwaInstallPrompt?: any;
   onInstallPwa?: () => void;
 }
@@ -19,6 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
   darkMode,
   onToggleTheme,
   onResetToHome,
+  globalLanguage,
+  onOpenLanguageSelector,
   pwaInstallPrompt,
   onInstallPwa,
 }) => {
@@ -53,6 +58,17 @@ export const Header: React.FC<HeaderProps> = ({
               Install App
             </button>
           )}
+
+          {/* Permanent Language Selector in Header */}
+          <button
+            onClick={onOpenLanguageSelector}
+            title={`Active Language: ${globalLanguage.name} (${globalLanguage.nativeName}) - Tap to change`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 transition-colors text-xs font-semibold shadow-2xs cursor-pointer"
+          >
+            <span className="text-sm">{globalLanguage.flag}</span>
+            <span className="hidden sm:inline">{globalLanguage.nativeName}</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
 
           <button
             onClick={onToggleTheme}

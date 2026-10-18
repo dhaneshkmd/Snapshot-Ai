@@ -24,6 +24,15 @@ import {
   clearAllHistory,
 } from './utils/storage';
 import { AlertCircle, RotateCcw } from 'lucide-react';
+import { CommentReplyStudio } from './components/CommentReplyStudio';
+import { LanguageSelectorModal } from './components/LanguageSelectorModal';
+import {
+  LanguageOption,
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+  getLanguageByCode,
+} from './modules/languages/languageData';
+import { extractCommentsFromOCR, DetectedComment } from './modules/comments/commentDetector';
 
 function formatErrorMessage(errData: any, fallback: string): string {
   if (!errData) return fallback;
@@ -53,7 +62,7 @@ function formatErrorMessage(errData: any, fallback: string): string {
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings'>('home');
-  const [stage, setStage] = useState<'upload' | 'analyzing' | 'recommend' | 'result'>('upload');
+  const [stage, setStage] = useState<'upload' | 'analyzing' | 'recommend' | 'result' | 'comment_reply'>('upload');
   
   const [currentImage, setCurrentImage] = useState<{
     base64: string;
@@ -72,6 +81,43 @@ export default function App() {
     actionName: string;
     actionPrompt: string;
   } | null>(null);
+
+  // Multilingual Comment Reply Engine (v2) State
+  const [globalLanguage, setGlobalLanguage] = useState<LanguageOption>(() => {
+    try {
+      const saved = localStorage.getItem('snapaction_global_lang');
+      return saved ? getLanguageByCode(saved) : DEFAULT_LANGUAGE;
+    } catch {
+      return DEFAULT_LANGUAGE;
+    }
+  });
+  const [isGlobalLangModalOpen, setIsGlobalLangModalOpen] = useState(false);
+  const [favoriteStyleIds, setFavoriteStyleIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('snapaction_fav_styles');
+      return saved ? JSON.parse(saved) : ['professional', 'friendly', 'respectful_disagreement'];
+    } catch {
+      return ['professional', 'friendly', 'respectful_disagreement'];
+    }
+  });
+  const [selectedCommentId, setSelectedCommentId] = useState<string>('c_1');
+
+  const handleUpdateGlobalLanguage = (lang: LanguageOption) => {
+    setGlobalLanguage(lang);
+    try {
+      localStorage.setItem('snapaction_global_lang', lang.code);
+    } catch {}
+  };
+
+  const handleToggleFavoriteStyle = (styleId: string) => {
+    setFavoriteStyleIds((prev) => {
+      const next = prev.includes(styleId) ? prev.filter((id) => id !== styleId) : [...prev, styleId];
+      try {
+        localStorage.setItem('snapaction_fav_styles', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>(getStoredSettings());
@@ -447,9 +493,35 @@ export default function App() {
     setHistoryItems([]);
   };
 
+  // Compute detected comments from OCR text for the Focus Comment & Reply Engine
+  const commentContext = React.useMemo(() => {
+    const text =
+      parsedScreenshot?.cleanMarkdown ||
+      parsedScreenshot?.rawText ||
+      analysisResult?.summary ||
+      '';
+    return extractCommentsFromOCR(text);
+  }, [parsedScreenshot?.cleanMarkdown, parsedScreenshot?.rawText, analysisResult?.summary]);
+
+  const activeComments: DetectedComment[] =
+    commentContext.comments.length > 0
+      ? commentContext.comments
+      : [
+          {
+            id: 'c_1',
+            author: 'Post Comment',
+            text:
+              parsedScreenshot?.cleanMarkdown ||
+              parsedScreenshot?.rawText ||
+              analysisResult?.summary ||
+              'No comment text extracted. Tap Edit Text to paste or refine the comment.',
+            language: globalLanguage,
+          },
+        ];
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors selection:bg-blue-500 selection:text-white">
-      {/* Top Header */}
+      {/* Top Header with Permanent Global Language Selector in top-right */}
       <Header
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
@@ -457,6 +529,8 @@ export default function App() {
         darkMode={isDark}
         onToggleTheme={handleToggleTheme}
         onResetToHome={handleResetToHome}
+        globalLanguage={globalLanguage}
+        onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
         pwaInstallPrompt={pwaPrompt}
         onInstallPwa={handleInstallPwa}
       />
@@ -542,8 +616,23 @@ export default function App() {
                 analysis={analysisResult}
                 onSelectAction={handleSelectAction}
                 onOpenMoreActions={() => setIsMoreActionsOpen(true)}
+                onOpenReplyStudio={() => setStage('comment_reply')}
                 onRetake={handleResetToHome}
                 isExecutingAction={isExecutingAction}
+              />
+            )}
+
+            {/* Multilingual Comment Reply Studio Stage (Version 2) */}
+            {stage === 'comment_reply' && (
+              <CommentReplyStudio
+                comments={activeComments}
+                selectedCommentId={selectedCommentId}
+                onSelectCommentId={setSelectedCommentId}
+                globalLanguage={globalLanguage}
+                onUpdateGlobalLanguage={handleUpdateGlobalLanguage}
+                onBackToActions={() => setStage('recommend')}
+                favoriteStyleIds={favoriteStyleIds}
+                onToggleFavoriteStyle={handleToggleFavoriteStyle}
               />
             )}
 
@@ -565,6 +654,15 @@ export default function App() {
         onClose={() => setIsMoreActionsOpen(false)}
         screenshotMoreActions={analysisResult?.moreActions || []}
         onSelectAction={handleSelectAction}
+      />
+
+      {/* Permanent Global Language Selector Modal */}
+      <LanguageSelectorModal
+        isOpen={isGlobalLangModalOpen}
+        onClose={() => setIsGlobalLangModalOpen(false)}
+        selectedLanguage={globalLanguage}
+        onSelectLanguage={handleUpdateGlobalLanguage}
+        title="Select Default Language"
       />
     </div>
   );

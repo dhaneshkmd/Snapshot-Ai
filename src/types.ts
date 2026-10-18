@@ -52,4 +52,7 @@ export interface HistoryItem {
 export interface AppSettings {
   autoDeleteScreenshots: boolean;
   theme: 'light' | 'dark' | 'system';
+  defaultLanguageCode?: string;
+  favoriteReplyStyles?: string[];
+  defaultReplyLength?: 'short' | 'medium' | 'detailed';
 }

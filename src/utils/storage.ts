@@ -13,6 +13,9 @@ export function getStoredSettings(): AppSettings {
   return {
     autoDeleteScreenshots: false,
     theme: 'system',
+    defaultLanguageCode: 'en',
+    favoriteReplyStyles: ['professional', 'friendly', 'humorous', 'respectful_disagreement'],
+    defaultReplyLength: 'medium',
   };
 }
 

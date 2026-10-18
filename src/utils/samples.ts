@@ -42,6 +42,60 @@ export interface SampleItem {
 
 export const SAMPLE_SCREENSHOTS: SampleItem[] = [
   {
+    id: 'comments',
+    title: 'Post & Comments',
+    emoji: '💬',
+    description: 'LinkedIn discussion with 3 comments',
+    getSvg: () => `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600" style="background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+        <!-- LinkedIn Header -->
+        <rect x="0" y="0" width="800" height="60" fill="#0a66c2"/>
+        <text x="40" y="38" fill="#ffffff" font-size="20" font-weight="bold">LinkedIn</text>
+        <text x="140" y="38" fill="#e0f2fe" font-size="14">Post Discussion & Comments</text>
+
+        <!-- Main Post -->
+        <rect x="40" y="75" width="720" height="110" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+        <circle cx="70" cy="105" r="18" fill="#3b82f6"/>
+        <text x="70" y="111" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">AR</text>
+        <text x="100" y="103" fill="#0f172a" font-size="16" font-weight="bold">Alex Rivera • Founder & CEO</text>
+        <text x="100" y="122" fill="#64748b" font-size="12">12h • Edited • 🌐</text>
+        <text x="60" y="152" fill="#1e293b" font-size="15">AI tooling is accelerating engineering workflows, but real team leverage requires domain judgment.</text>
+        <text x="60" y="172" fill="#1e293b" font-size="15">What has been your team's real experience this quarter?</text>
+
+        <!-- Comment 1 -->
+        <rect x="40" y="200" width="720" height="95" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <circle cx="70" cy="225" r="16" fill="#8b5cf6"/>
+        <text x="70" y="231" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">PN</text>
+        <text x="96" y="224" fill="#0f172a" font-size="15" font-weight="bold">Priya Nair • 1st</text>
+        <text x="96" y="240" fill="#64748b" font-size="12">Lead AI Architect at TechCorp • 2h</text>
+        <text x="60" y="268" fill="#1e293b" font-size="14">We reduced routine boilerplate by 45%, but architectural guardrails and code review are more crucial than ever.</text>
+        <text x="60" y="286" fill="#64748b" font-size="12">Like • Reply • 34 Likes</text>
+
+        <!-- Comment 2 -->
+        <rect x="40" y="310" width="720" height="95" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <circle cx="70" cy="335" r="16" fill="#059669"/>
+        <text x="70" y="341" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">DC</text>
+        <text x="96" y="334" fill="#0f172a" font-size="15" font-weight="bold">David Chen • 2nd</text>
+        <text x="96" y="350" fill="#64748b" font-size="12">VP Engineering at CloudScale • 1h</text>
+        <text x="60" y="378" fill="#1e293b" font-size="14">I am still cautious about hallucinated dependencies and latency spikes in mission-critical real-time banking pipelines.</text>
+        <text x="60" y="396" fill="#64748b" font-size="12">Like • Reply • 19 Likes</text>
+
+        <!-- Comment 3 -->
+        <rect x="40" y="420" width="720" height="95" rx="12" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <circle cx="70" cy="445" r="16" fill="#d97706"/>
+        <text x="70" y="451" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">AM</text>
+        <text x="96" y="444" fill="#0f172a" font-size="15" font-weight="bold">Amina Al-Mansoor • 3rd</text>
+        <text x="96" y="460" fill="#64748b" font-size="12">Global Product Lead • 35m</text>
+        <text x="60" y="488" fill="#1e293b" font-size="14">The real breakthrough for our distributed team is multilingual collaboration across Malayalam, Arabic and English!</text>
+        <text x="60" y="506" fill="#64748b" font-size="12">Like • Reply • 28 Likes</text>
+
+        <!-- Footer / Input bar -->
+        <rect x="40" y="535" width="720" height="45" rx="22" fill="#ffffff" stroke="#94a3b8"/>
+        <text x="65" y="562" fill="#94a3b8" font-size="14">Add a thoughtful comment...</text>
+      </svg>
+    `,
+  },
+  {
     id: 'chat',
     title: 'Conversation',
     emoji: '💬',
