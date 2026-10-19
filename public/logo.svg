@@ -1,0 +1,53 @@
+<svg viewBox="0 0 540 160" width="540" height="160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logo_vf_tl" x1="20" y1="20" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0066FF" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="logo_vf_tr" x1="140" y1="20" x2="100" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0066FF" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+    <linearGradient id="logo_vf_bl" x1="20" y1="140" x2="60" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0066FF" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="logo_vf_br" x1="140" y1="140" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="logo_bolt_top" x1="95" y1="36" x2="65" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFCC00" />
+      <stop offset="45%" stop-color="#FF8800" />
+      <stop offset="100%" stop-color="#FF4500" />
+    </linearGradient>
+    <linearGradient id="logo_bolt_bottom" x1="110" y1="84" x2="70" y2="142" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF4500" />
+      <stop offset="30%" stop-color="#F43F5E" />
+      <stop offset="75%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+    <linearGradient id="logo_n_grad" x1="430" y1="65" x2="470" y2="115" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="50%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#9333EA" />
+    </linearGradient>
+  </defs>
+
+  <!-- Left Icon Mark (scaled & shifted to x:10, y:10) -->
+  <g transform="translate(10, 5) scale(0.9)">
+    <!-- Viewfinder 4 Rounded Corner Brackets -->
+    <path d="M 58 40 L 76 40 C 81 40 85 44 85 49 C 85 54 81 58 76 58 L 58 58 C 48 58 40 66 40 76 L 40 94 C 40 99 36 103 31 103 C 26 103 22 99 22 94 L 22 76 C 22 56 38 40 58 40 Z" fill="url(#logo_vf_tl)"/>
+    <path d="M 142 40 L 124 40 C 119 40 115 44 115 49 C 115 54 119 58 124 58 L 142 58 C 152 58 160 66 160 76 L 160 94 C 160 99 164 103 169 103 C 174 103 178 99 178 94 L 178 76 C 178 56 162 40 142 40 Z" fill="url(#logo_vf_tr)"/>
+    <path d="M 58 160 L 76 160 C 81 160 85 156 85 151 C 85 146 81 142 76 142 L 58 142 C 48 142 40 134 40 124 L 40 106 C 40 101 36 97 31 97 C 26 97 22 101 22 106 L 22 124 C 22 144 38 160 58 160 Z" fill="url(#logo_vf_bl)"/>
+    <path d="M 142 160 L 124 160 C 119 160 115 156 115 151 C 115 146 119 142 124 142 L 142 142 C 152 142 160 134 160 124 L 160 106 C 160 101 164 97 169 97 C 174 97 178 101 178 106 L 178 124 C 178 144 162 160 142 160 Z" fill="url(#logo_vf_br)"/>
+
+    <!-- Lightning Bolt -->
+    <path d="M 115 56 L 75 116 C 73 118 75 121 78 121 L 104 121 L 90 160 C 89 163 92 165 94 162 L 133 104 C 135 101 133 98 130 98 L 105 98 L 115 56 Z" fill="url(#logo_bolt_top)"/>
+    <path d="M 104 121 L 90 160 C 89 163 92 165 94 162 L 133 104 L 110 104 L 104 121 Z" fill="url(#logo_bolt_bottom)"/>
+  </g>
+
+  <!-- Wordmark Text -->
+  <text x="175" y="96" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="44" fill="#0F172A" letter-spacing="-0.04em">SnapActio<tspan fill="url(#logo_n_grad)">n</tspan> AI</text>
+  <text x="178" y="122" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="13" fill="#64748B" letter-spacing="0.08em">SCREENSHOT TO ACTION ENGINE</text>
+</svg>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { SnapActionLogo } from './SnapActionLogo';
 
 interface AnalyzingViewProps {
   imageThumbnail: string;
@@ -36,10 +37,10 @@ export const AnalyzingView: React.FC<AnalyzingViewProps> = ({ imageThumbnail }) 
         {/* Luminous scanning beam */}
         <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-blue-400 to-transparent shadow-[0_0_15px_#38bdf8] animate-[scan_2s_ease-in-out_infinite]" />
 
-        {/* Corner glow badges */}
-        <div className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-semibold text-blue-300 flex items-center gap-1 border border-blue-500/20">
-          <Sparkles className="w-3 h-3 text-blue-400 animate-spin" />
-          Analyzing
+        {/* Official SnapAction Logo corner badge */}
+        <div className="absolute top-3 left-3 px-2 py-1 rounded-xl bg-black/75 backdrop-blur-md text-[10px] font-semibold text-white flex items-center gap-1.5 border border-blue-500/30 shadow-md">
+          <SnapActionLogo size={14} variant="icon-only" />
+          <span>Analyzing</span>
         </div>
       </div>
 

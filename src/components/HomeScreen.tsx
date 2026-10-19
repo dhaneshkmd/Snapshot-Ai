@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Plus, UploadCloud, Clipboard, Camera, Share2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { SAMPLE_SCREENSHOTS, svgToPngBase64, SampleItem } from '../utils/samples';
 import { optimizeScreenshot } from '../utils/imageCompressor';
+import { SnapActionLogo } from './SnapActionLogo';
 
 interface HomeScreenProps {
   onImageSelected: (imageBase64: string, mimeType: string, filename?: string) => void;
@@ -172,20 +173,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onImageSelected, isProce
         className="hidden"
       />
 
-      {/* Main Hero Header */}
-      <div className="text-center mb-8 space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/80 border border-blue-200/60 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide">
-          <Sparkles className="w-3.5 h-3.5" />
-          Screenshot → Understand → Recommend → Act
+      {/* Main Hero Header with Official SnapAction AI Logo */}
+      <div className="text-center mb-8 space-y-4">
+        {/* Official Branded Emblem Badge */}
+        <div className="flex flex-col items-center">
+          <div className="p-3.5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-500/10 mb-2">
+            <SnapActionLogo size={80} variant="icon-only" showGlow />
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/80 border border-blue-200/60 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 text-xs font-semibold tracking-wide mt-1">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            Screenshot → Understand → Recommend → Act
+          </div>
         </div>
-        
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          SnapAction AI
-        </h1>
-        
-        <p className="text-lg sm:text-xl font-medium text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-          Screenshot Anything. <span className="text-blue-600 dark:text-blue-400">Turn It Into Action.</span>
-        </p>
+
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center">
+            <span>SnapActio</span>
+            <span className="bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 bg-clip-text text-transparent">
+              n
+            </span>
+            <span className="ml-1.5">AI</span>
+          </h1>
+
+          <p className="text-base sm:text-lg font-medium text-slate-600 dark:text-slate-300 max-w-md mx-auto mt-1.5">
+            Screenshot Anything.{' '}
+            <span className="text-blue-600 dark:text-blue-400 font-semibold">
+              Turn It Into Action.
+            </span>
+          </p>
+        </div>
       </div>
 
       {/* Drag & Drop Visual Indicator Overlay */}

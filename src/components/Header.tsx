@@ -1,6 +1,7 @@
 import React from 'react';
-import { Sparkles, Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe } from 'lucide-react';
+import { Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe } from 'lucide-react';
 import { LanguageOption } from '../modules/languages/languageData';
+import { SnapActionLogo } from './SnapActionLogo';
 
 interface HeaderProps {
   currentTab: 'home' | 'history' | 'settings';
@@ -30,22 +31,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
       <div className="max-w-2xl mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Brand */}
+        {/* Brand with official SnapAction AI Logo */}
         <button
           onClick={onResetToHome}
-          className="flex items-center gap-2.5 text-left group focus:outline-none"
+          className="flex items-center text-left group focus:outline-none cursor-pointer group-hover:opacity-90 transition-opacity"
+          title="SnapAction AI - Home"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <span className="font-bold text-lg tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-              SnapAction
-              <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50">
-                AI
-              </span>
-            </span>
-          </div>
+          <SnapActionLogo size={32} variant="horizontal" />
         </button>
 
         {/* Action icons / Navigation */}

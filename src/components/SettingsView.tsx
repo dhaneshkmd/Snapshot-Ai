@@ -10,6 +10,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { AppSettings } from '../types';
+import { SnapActionLogo } from './SnapActionLogo';
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -211,10 +212,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* About */}
-      <div className="text-center text-xs text-slate-400 dark:text-slate-500 space-y-1 pt-2">
-        <p><strong>SnapAction AI</strong> — Screenshot Anything. Turn It Into Action.</p>
-        <p>Powered by Gemini Multimodal Visual Engine</p>
+      {/* About with Official Logo */}
+      <div className="flex flex-col items-center justify-center text-center text-xs text-slate-400 dark:text-slate-500 space-y-2 pt-4">
+        <SnapActionLogo size={36} variant="horizontal" />
+        <p className="text-[11px] max-w-xs text-slate-500 dark:text-slate-400">
+          Screenshot Anything. Turn It Into Action.
+        </p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500">
+          Powered by Gemini Multimodal Visual Engine & Local Intelligence
+        </p>
       </div>
     </div>
   );
