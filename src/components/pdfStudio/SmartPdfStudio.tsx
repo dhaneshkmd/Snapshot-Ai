@@ -45,6 +45,7 @@ import {
   SampleNoteScenario,
   getTemplateById,
 } from '../../modules/pdfStudio/documentTypes';
+import { generateLocalFallbackDocument } from '../../modules/pdfStudio/localDocumentArchitect';
 import { exportDocumentToDocx, triggerDownload } from '../../modules/pdfStudio/docxExporter';
 import { printDocumentAsPdf, downloadVectorPdfDirect } from '../../modules/pdfStudio/pdfExporter';
 import { LanguageOption } from '../../modules/languages/languageData';
@@ -86,6 +87,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('Reading notes & analyzing context...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
 
   // Generated Document State
   const [document, setDocument] = useState<SmartDocument | null>(null);
@@ -155,8 +157,8 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     setSelectedTemplateId(sample.expectedTemplateId);
   };
 
-  // Generate Document API Call
-  const handleGenerateDocument = async () => {
+  // Generate Document: High-Speed Resilient Engine (Cloud Gemini + Instant Local Architect Fallback)
+  const handleGenerateDocument = async (forceLocal = false) => {
     if (!inputText.trim() && !inputImage) {
       setErrorMessage('Please enter notes or upload a screenshot to transform.');
       return;
@@ -164,41 +166,68 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
 
     setIsGenerating(true);
     setErrorMessage(null);
+    setInfoNotice(null);
     setGenerationStep('1/3: Reading notes & analyzing context...');
 
+    const timer1 = setTimeout(() => {
+      setGenerationStep('2/3: Structuring sections, tables & professional phrasing...');
+    }, 1500);
+
+    const timer2 = setTimeout(() => {
+      setGenerationStep('3/3: Typesetting layout & applying theme styling...');
+    }, 3200);
+
     try {
-      const timer1 = setTimeout(() => {
-        setGenerationStep('2/3: Structuring sections, tables & professional phrasing...');
-      }, 1500);
+      let generatedDoc: SmartDocument | null = null;
 
-      const timer2 = setTimeout(() => {
-        setGenerationStep('3/3: Typesetting layout & applying theme styling...');
-      }, 3500);
+      // 1. Attempt Server Gemini Generation (Unless forced to local)
+      if (!forceLocal) {
+        try {
+          const res = await fetch('/api/generate-smart-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              notesText: inputText,
+              imageBase64: inputImage,
+              documentType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
+              language: globalLanguage.name,
+              writingStyle,
+              quickMode,
+              lengthMode,
+              metadata: document?.metadata || {},
+            }),
+          });
 
-      const res = await fetch('/api/generate-smart-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+          if (res.ok) {
+            generatedDoc = await res.json();
+            setInfoNotice(null);
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            console.warn(`Server AI returned ${res.status}:`, errData);
+          }
+        } catch (netErr) {
+          console.warn('Network call failed, switching to local architect:', netErr);
+        }
+      }
+
+      // 2. Seamless Local Structuring Fallback (Guarantees zero user downtime even if network/AI is 404/503)
+      if (!generatedDoc) {
+        generatedDoc = generateLocalFallbackDocument({
           notesText: inputText,
-          imageBase64: inputImage,
-          documentType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
+          hasImage: Boolean(inputImage),
+          requestedType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
           language: globalLanguage.name,
           writingStyle,
           quickMode,
           lengthMode,
           metadata: document?.metadata || {},
-        }),
-      });
+        });
+        setInfoNotice('Structured via instant local document engine (ready to view & export).');
+      }
 
       clearTimeout(timer1);
       clearTimeout(timer2);
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Document generation failed (${res.status})`);
-      }
-
-      const generatedDoc: SmartDocument = await res.json();
       setDocument(generatedDoc);
       setActiveTab('preview');
 
@@ -214,8 +243,26 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
       }
     } catch (err: any) {
       console.error('Error generating document:', err);
-      setErrorMessage(err.message || 'Failed to generate document. Please try again.');
+      // Emergency local fallback ensures user is never blocked
+      try {
+        const emergencyDoc = generateLocalFallbackDocument({
+          notesText: inputText,
+          hasImage: Boolean(inputImage),
+          requestedType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
+          language: globalLanguage.name,
+          writingStyle,
+          quickMode,
+          lengthMode,
+        });
+        setDocument(emergencyDoc);
+        setActiveTab('preview');
+        setInfoNotice('Structured via high-speed local document engine.');
+      } catch {
+        setErrorMessage(err.message || 'Failed to generate document. Please try again.');
+      }
     } finally {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
       setIsGenerating(false);
     }
   };
@@ -479,6 +526,32 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
         </div>
       )}
 
+      {/* LOCAL ENGINE INFO NOTICE */}
+      {infoNotice && (
+        <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-200 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-blue-500 shrink-0" />
+            <span>{infoNotice}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleGenerateDocument(false)}
+              disabled={isGenerating}
+              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <Sparkles className="w-3 h-3" />
+              Polish with AI
+            </button>
+            <button
+              onClick={() => setInfoNotice(null)}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================= */}
       {/* 1. INPUT & GENERATION VIEW (When no document is loaded) */}
       {/* ========================================================= */}
@@ -685,7 +758,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
 
             {/* Massive Primary CTA: Make It Professional */}
             <button
-              onClick={handleGenerateDocument}
+              onClick={() => handleGenerateDocument()}
               disabled={isGenerating || (!inputText.trim() && !inputImage)}
               className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white font-black text-base sm:text-lg shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >

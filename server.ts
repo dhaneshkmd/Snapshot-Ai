@@ -84,10 +84,10 @@ const metrics: AIProviderMetrics = {
 
 // Verified multimodal models available in @google/genai SDK
 const ROLE_MODELS: Record<ModelRole, string[]> = {
-  // Vision tasks require capable multimodal models. NEVER fallback to a text-only model!
-  vision: ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
-  text: ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
-  reasoning: ['gemini-2.5-flash', 'gemini-3.8-flash'],
+  // gemini-2.5-flash is multimodal, rapid, and fully supported
+  vision: ['gemini-2.5-flash'],
+  text: ['gemini-2.5-flash'],
+  reasoning: ['gemini-2.5-flash'],
 };
 
 export class AIProviderService {
@@ -98,17 +98,17 @@ export class AIProviderService {
     if (status === 401 || status === 403 || msg.includes('API key') || msg.includes('PERMISSION_DENIED')) {
       return { category: 'AUTHENTICATION_ERROR', retryable: false, message: 'Server GEMINI_API_KEY is missing or invalid.', httpStatus: 401 };
     }
-    if (status === 404 || msg.includes('NOT_FOUND') || msg.includes('is not found')) {
-      return { category: 'MODEL_NOT_FOUND', retryable: true, message: 'Selected model identifier is unavailable or retired in this region.', httpStatus: 404 };
+    if (status === 404 || msg.includes('NOT_FOUND') || msg.includes('is not found') || msg.includes('no longer available')) {
+      return { category: 'MODEL_NOT_FOUND', retryable: true, message: 'Upstream AI model is currently unavailable in this region.', httpStatus: 503 };
     }
     if (status === 429 || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
-      return { category: 'RATE_LIMITED', retryable: true, message: 'API rate limit or quota exceeded. Falling back to alternative model.', httpStatus: 429 };
+      return { category: 'RATE_LIMITED', retryable: true, message: 'API rate limit or quota exceeded. Please try again shortly.', httpStatus: 429 };
     }
     if (status === 503 || msg.includes('UNAVAILABLE') || msg.includes('high demand') || msg.includes('temporarily overloaded')) {
-      return { category: 'SERVICE_OVERLOAD', retryable: true, message: 'AI model is experiencing high demand. Retrying with alternative model.', httpStatus: 503 };
+      return { category: 'SERVICE_OVERLOAD', retryable: true, message: 'AI model is experiencing high demand. Please retry.', httpStatus: 503 };
     }
     if (status === 400 || msg.includes('INVALID_ARGUMENT')) {
-      return { category: 'INVALID_PAYLOAD', retryable: false, message: 'Invalid image format or schema payload.', httpStatus: 400 };
+      return { category: 'INVALID_PAYLOAD', retryable: false, message: 'Invalid format or schema payload.', httpStatus: 400 };
     }
     return { category: 'SERVER_ERROR', retryable: false, message: msg || 'Unexpected AI service error.', httpStatus: 500 };
   }
@@ -491,7 +491,7 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
 });
 
 // Smart PDF Studio: Turn Messy Notes Into Professional Documents
-app.post('/api/generate-smart-document', async (req: Request, res: Response) => {
+app.post(['/api/generate-smart-document', '/api/generate-smart-document/'], async (req: Request, res: Response) => {
   const reqId = `pdf_${Date.now()}`;
   try {
     const {
