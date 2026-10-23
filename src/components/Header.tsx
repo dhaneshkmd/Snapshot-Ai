@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe } from 'lucide-react';
+import { Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe, Activity } from 'lucide-react';
 import { LanguageOption } from '../modules/languages/languageData';
 import { SnapActionLogo } from './SnapActionLogo';
 
@@ -12,6 +12,7 @@ interface HeaderProps {
   onResetToHome: () => void;
   globalLanguage: LanguageOption;
   onOpenLanguageSelector: () => void;
+  onOpenDiagnostics?: () => void;
   pwaInstallPrompt?: any;
   onInstallPwa?: () => void;
 }
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   onResetToHome,
   globalLanguage,
   onOpenLanguageSelector,
+  onOpenDiagnostics,
   pwaInstallPrompt,
   onInstallPwa,
 }) => {
@@ -99,6 +101,17 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400" />
             )}
           </button>
+
+          {onOpenDiagnostics && (
+            <button
+              onClick={onOpenDiagnostics}
+              aria-label="AI Health Diagnostics"
+              title="AI System Health & Diagnostics (Hybrid Engine Status)"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <Activity className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </button>
+          )}
 
           <button
             onClick={() => onSelectTab('settings')}

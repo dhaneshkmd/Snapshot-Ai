@@ -27,6 +27,7 @@ import { AlertCircle, RotateCcw } from 'lucide-react';
 import { CommentReplyStudio } from './components/CommentReplyStudio';
 import { HseVisionStudio } from './components/hse/HseVisionStudio';
 import { LanguageSelectorModal } from './components/LanguageSelectorModal';
+import { DiagnosticsModal } from './components/DiagnosticsModal';
 import {
   LanguageOption,
   SUPPORTED_LANGUAGES,
@@ -93,6 +94,7 @@ export default function App() {
     }
   });
   const [isGlobalLangModalOpen, setIsGlobalLangModalOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [favoriteStyleIds, setFavoriteStyleIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('snapaction_fav_styles');
@@ -532,6 +534,7 @@ export default function App() {
         onResetToHome={handleResetToHome}
         globalLanguage={globalLanguage}
         onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+        onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
         pwaInstallPrompt={pwaPrompt}
         onInstallPwa={handleInstallPwa}
       />
@@ -581,6 +584,7 @@ export default function App() {
             onClearHistory={handleClearHistory}
             pwaInstallPrompt={pwaPrompt}
             onInstallPwa={handleInstallPwa}
+            onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
           />
         )}
 
@@ -603,6 +607,7 @@ export default function App() {
             onBackToMain={() => setCurrentTab('home')}
             globalLanguage={globalLanguage}
             onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+            onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
             initialPhoto={
               currentImage
                 ? {
@@ -684,6 +689,12 @@ export default function App() {
         selectedLanguage={globalLanguage}
         onSelectLanguage={handleUpdateGlobalLanguage}
         title="Select Default Language"
+      />
+
+      {/* Developer AI System Health & Diagnostics Modal */}
+      <DiagnosticsModal
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
       />
     </div>
   );

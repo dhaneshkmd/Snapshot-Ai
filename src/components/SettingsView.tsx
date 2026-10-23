@@ -18,6 +18,7 @@ interface SettingsViewProps {
   onClearHistory: () => void;
   pwaInstallPrompt?: any;
   onInstallPwa?: () => void;
+  onOpenDiagnostics?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -26,6 +27,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onClearHistory,
   pwaInstallPrompt,
   onInstallPwa,
+  onOpenDiagnostics,
 }) => {
   return (
     <div className="max-w-xl mx-auto px-4 py-6 space-y-6 animate-in fade-in duration-300">
@@ -173,6 +175,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           >
             Clear Data
           </button>
+        </div>
+      </div>
+
+      {/* AI System Health & Diagnostics (Section 19) */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-base select-none">⚡</span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                AI System Health & Diagnostics
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                AIProviderService live metrics, vision test & router status
+              </p>
+            </div>
+          </div>
+          {onOpenDiagnostics && (
+            <button
+              onClick={onOpenDiagnostics}
+              className="px-3 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors cursor-pointer"
+            >
+              Open Diagnostics
+            </button>
+          )}
         </div>
       </div>
 

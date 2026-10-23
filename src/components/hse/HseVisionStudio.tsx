@@ -41,11 +41,13 @@ import { LanguageOption } from '../../modules/languages/languageData';
 import { svgToPngBase64 } from '../../utils/samples';
 import { optimizeScreenshot } from '../../utils/imageCompressor';
 import { getApplicableStandards } from '../../modules/hse/hseStandards';
+import { SnapActionIntelligenceRouter, ExecutionMode } from '../../modules/router/intelligenceRouter';
 
 interface HseVisionStudioProps {
   onBackToMain?: () => void;
   globalLanguage: LanguageOption;
   onOpenLanguageSelector: () => void;
+  onOpenDiagnostics?: () => void;
   initialPhoto?: {
     base64: string;
     mimeType: string;
@@ -59,6 +61,7 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   onBackToMain,
   globalLanguage,
   onOpenLanguageSelector,
+  onOpenDiagnostics,
   initialPhoto,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +84,8 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   const [isEditingMarkers, setIsEditingMarkers] = useState(false);
   const [afterPhotoSrc, setAfterPhotoSrc] = useState<string | null>(null);
   const [lastProcessedPhotoId, setLastProcessedPhotoId] = useState<string | null>(null);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode | null>(null);
+  const [isCachedResult, setIsCachedResult] = useState<boolean>(false);
 
   // Auto-analyze initialPhoto if provided from home screen or action card
   useEffect(() => {
@@ -95,7 +100,7 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
 
   // Generate lightweight unique fingerprint for image session isolation
   const computeImageHash = (b64: string): string => {
-    return `HASH-${b64.length}-${b64.slice(50, 70).replace(/[^a-zA-Z0-9]/g, '')}`;
+    return SnapActionIntelligenceRouter.computeImageHash(b64);
   };
 
   // 1. Load an authentic sample scenario for rapid demo & testing
@@ -103,6 +108,8 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
     try {
       setSampleLoadingId(scenario.id);
       setAnalysisError(null);
+      setExecutionMode('MODE_A_INTERNAL');
+      setIsCachedResult(false);
       const svg = scenario.getSvg();
       const pngBase64 = await svgToPngBase64(svg, 1000, 700);
 
@@ -173,7 +180,7 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
     }
   };
 
-  // 3. Dynamic AI Vision Analysis Call
+  // 3. Dynamic AI Vision Analysis Call via SnapAction Intelligence Router (Mode C: Hybrid)
   const analyzePhotoWithAi = async (base64: string, mimeType: string, filename?: string) => {
     // Session isolation: create new request sequence ID and clear old report findings
     const reqSeq = activeReqSeqRef.current + 1;
@@ -189,92 +196,43 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
       // Progressive progress feedback
       const timer1 = setTimeout(() => {
         if (activeReqSeqRef.current === reqSeq) {
-          setAnalysisStep('2/4: Identifying people, plant, equipment & structural assets...');
+          setAnalysisStep('2/4: Multimodal scene comprehension & asset isolation...');
         }
       }, 1200);
 
       const timer2 = setTimeout(() => {
         if (activeReqSeqRef.current === reqSeq) {
-          setAnalysisStep('3/4: Contextual hazard & positive control verification...');
+          setAnalysisStep('3/4: Contextual hazard mapping & positive control verification...');
         }
       }, 2500);
 
-      const res = await fetch('/api/hse-analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          mimeType,
-          jurisdiction: 'International (OSHA/ISO)',
-          preferredLanguage: globalLanguage.name,
-        }),
+      const timer3 = setTimeout(() => {
+        if (activeReqSeqRef.current === reqSeq) {
+          setAnalysisStep('4/4: Standards grounding & 5x5 risk matrix evaluation...');
+        }
+      }, 4000);
+
+      const { report: createdReport, mode, cached } = await SnapActionIntelligenceRouter.inspectWorksitePhoto({
+        imageBase64: base64,
+        mimeType,
+        filename,
+        jurisdiction: 'International (OSHA/ISO)',
+        language: globalLanguage.name,
       });
 
       clearTimeout(timer1);
       clearTimeout(timer2);
+      clearTimeout(timer3);
 
       // Verify request is still active and not superseded by another upload
       if (activeReqSeqRef.current !== reqSeq) {
         return;
       }
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Inspection analysis failed with status ${res.status}`);
-      }
-
-      const data = await res.json();
-
-      // Ensure observation standards are populated
-      const enrichedObservations = (data.observations || []).map((obs: HazardObservation, idx: number) => {
-        const standards =
-          obs.applicableStandards && obs.applicableStandards.length > 0
-            ? obs.applicableStandards
-            : getApplicableStandards(obs.hazardCategory);
-        return {
-          ...obs,
-          id: obs.id || `HAZ-${String(idx + 1).padStart(2, '0')}`,
-          markerNumber: obs.markerNumber || idx + 1,
-          applicableStandards: standards,
-          actionStatus: obs.actionStatus || 'Open',
-        };
-      });
-
-      const photo: InspectedPhoto = {
-        id: `photo_${Date.now()}`,
-        base64,
-        mimeType,
-        caption: filename || `${data.primaryActivity || 'Worksite'} Visual Inspection`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-
-      const createdReport: HseInspectionReport = {
-        id: `HSE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
-        imageHash: computeImageHash(base64),
-        reportTitle: data.reportTitle || `${data.primaryActivity || 'Worksite'} HSE Safety Inspection`,
-        inspectionDate: new Date().toISOString().split('T')[0],
-        inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        siteName: data.siteName || 'Active Construction Project Sector',
-        projectNumber: data.projectNumber || 'PRJ-2026-HSE',
-        workArea: data.workArea || 'Active Worksite Zone',
-        primaryActivity: data.primaryActivity || data.activityObserved || 'Industrial Worksite Operation',
-        secondaryActivities: data.secondaryActivities || [],
-        activityObserved: data.activityObserved || data.primaryActivity || 'Worksite Operations',
-        inspectorName: data.inspectorName || 'Senior Safety Auditor (Competent Person)',
-        inspectorDesignation: data.inspectorDesignation || 'Chartered HSE Inspector (NEBOSH / CMIOSH)',
-        executiveSummary: data.executiveSummary || 'Visual workplace inspection completed.',
-        overallSiteRisk: data.overallSiteRisk || (enrichedObservations.length === 0 ? 'Low' : 'High'),
-        photos: [photo],
-        selectedPhotoId: photo.id,
-        observations: enrichedObservations,
-        positiveObservations: data.positiveObservations || [],
-        mattersRequiringFieldVerification: data.mattersRequiringFieldVerification || [],
-        jurisdiction: 'International (OSHA/ISO)',
-        reportLanguage: globalLanguage.name,
-      };
-
+      setExecutionMode(mode);
+      setIsCachedResult(cached);
       setReport(createdReport);
-      setSelectedObsId(enrichedObservations[0]?.id || null);
+      setSelectedObsId(createdReport.observations[0]?.id || null);
       setActiveTab('canvas');
     } catch (err: any) {
       console.warn('AI analysis error:', err);
@@ -297,6 +255,8 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   // Start a clean manual inspection dossier (0 hardcoded findings, inspector places pins)
   const handleStartManualInspection = (base64: string, mimeType: string, filename?: string) => {
     setAnalysisError(null);
+    setExecutionMode('MODE_A_INTERNAL');
+    setIsCachedResult(false);
     const photo: InspectedPhoto = {
       id: `photo_${Date.now()}`,
       base64,
@@ -490,6 +450,36 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {executionMode === 'MODE_C_HYBRID' ? (
+            <button
+              onClick={onOpenDiagnostics}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
+              title="SnapAction Intelligence Router: Mode C (Gemini Vision + HSE Rules Engine). Tap to view Diagnostics."
+            >
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              <span>Hybrid Vision AI</span>
+              {isCachedResult && <span className="opacity-75 font-normal text-[10px]">(Cached)</span>}
+            </button>
+          ) : executionMode === 'MODE_A_INTERNAL' ? (
+            <button
+              onClick={onOpenDiagnostics}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 shadow-2xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
+              title="SnapAction Intelligence Router: Mode A (Zero-Token Internal Processing). Tap to view Diagnostics."
+            >
+              <CheckCircle2 className="w-3 h-3 text-blue-500" />
+              <span>Internal Engine</span>
+            </button>
+          ) : onOpenDiagnostics ? (
+            <button
+              onClick={onOpenDiagnostics}
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              title="AI System Health & Diagnostics"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>AI Health</span>
+            </button>
+          ) : null}
+
           {onBackToMain && (
             <button
               onClick={onBackToMain}
@@ -552,6 +542,15 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
             >
               <Plus className="w-3.5 h-3.5 text-orange-500" /> Annotate Manually
             </button>
+            {onOpenDiagnostics && (
+              <button
+                onClick={onOpenDiagnostics}
+                className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <Sliders className="w-3.5 h-3.5 text-blue-500" />
+                AI System Diagnostics
+              </button>
+            )}
             <button
               onClick={() => setAnalysisError(null)}
               className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"

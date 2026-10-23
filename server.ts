@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import dotenv from 'dotenv';
@@ -14,7 +15,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Body parser with 50mb limit for screenshots
+// Body parser with 50mb limit for high-resolution worksite photographs & screenshots
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -23,7 +24,7 @@ const ai = new GoogleGenAI({
   apiKey: apiKey || '',
   httpOptions: {
     headers: {
-      'User-Agent': 'aistudio-build',
+      'User-Agent': 'aistudio-build-snapaction',
     },
   },
 });
@@ -38,49 +39,203 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
   return { mimeType: 'image/png', data: dataUrlOrBase64 };
 }
 
-// Resilient high-speed model execution: prioritize ultra-fast gemini-3.1-flash-lite
-async function generateContentWithFallback(params: any): Promise<any> {
-  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
-  let lastError: any = null;
+// =========================================================================
+// AIProviderService: Role-based model configuration, retries, and telemetry
+// =========================================================================
+export type ModelRole = 'vision' | 'text' | 'reasoning';
 
-  for (const model of models) {
-    try {
-      const response = await ai.models.generateContent({
-        ...params,
-        model,
-      });
-      return response;
-    } catch (err: any) {
-      lastError = err;
-      const msg = String(err?.message || JSON.stringify(err) || '');
-      console.warn(`[SnapAction] Model ${model} response issue: ${msg.substring(0, 120)}...`);
+export interface AIProviderMetrics {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  lastLatencyMs: number;
+  lastModelUsed: string;
+  lastErrorCategory: string | null;
+  lastErrorTimestamp: string | null;
+  activeVisionModel: string;
+  activeTextModel: string;
+}
 
-      // If quota is exhausted, immediately switch to next model with no delay
-      if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded') || msg.includes('429')) {
-        continue;
-      }
+const metrics: AIProviderMetrics = {
+  totalRequests: 0,
+  successfulRequests: 0,
+  failedRequests: 0,
+  lastLatencyMs: 0,
+  lastModelUsed: 'gemini-2.5-flash',
+  lastErrorCategory: null,
+  lastErrorTimestamp: null,
+  activeVisionModel: 'gemini-2.5-flash',
+  activeTextModel: 'gemini-2.5-flash',
+};
 
-      // For 503 transient spikes, brief 400ms retry before switching
-      if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')) {
+// Verified multimodal models available in @google/genai SDK
+const ROLE_MODELS: Record<ModelRole, string[]> = {
+  // Vision tasks require capable multimodal models. NEVER fallback to a text-only model!
+  vision: ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
+  text: ['gemini-2.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
+  reasoning: ['gemini-2.5-flash', 'gemini-3.8-flash'],
+};
+
+export class AIProviderService {
+  public static categorizeError(err: any): { category: string; retryable: boolean; message: string; httpStatus: number } {
+    const msg = String(err?.message || JSON.stringify(err) || '');
+    const status = Number(err?.status || err?.code || 0);
+
+    if (status === 401 || status === 403 || msg.includes('API key') || msg.includes('PERMISSION_DENIED')) {
+      return { category: 'AUTHENTICATION_ERROR', retryable: false, message: 'Server GEMINI_API_KEY is missing or invalid.', httpStatus: 401 };
+    }
+    if (status === 404 || msg.includes('NOT_FOUND') || msg.includes('is not found')) {
+      return { category: 'MODEL_NOT_FOUND', retryable: true, message: 'Selected model identifier is unavailable or retired in this region.', httpStatus: 404 };
+    }
+    if (status === 429 || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('Quota exceeded')) {
+      return { category: 'RATE_LIMITED', retryable: true, message: 'API rate limit or quota exceeded. Falling back to alternative model.', httpStatus: 429 };
+    }
+    if (status === 503 || msg.includes('UNAVAILABLE') || msg.includes('high demand') || msg.includes('temporarily overloaded')) {
+      return { category: 'SERVICE_OVERLOAD', retryable: true, message: 'AI model is experiencing high demand. Retrying with alternative model.', httpStatus: 503 };
+    }
+    if (status === 400 || msg.includes('INVALID_ARGUMENT')) {
+      return { category: 'INVALID_PAYLOAD', retryable: false, message: 'Invalid image format or schema payload.', httpStatus: 400 };
+    }
+    return { category: 'SERVER_ERROR', retryable: false, message: msg || 'Unexpected AI service error.', httpStatus: 500 };
+  }
+
+  public static async executeWithFallback(params: {
+    role: ModelRole;
+    contents: any[];
+    config?: any;
+    reqId?: string;
+  }): Promise<{ response: any; modelUsed: string; latencyMs: number }> {
+    const candidateModels = ROLE_MODELS[params.role];
+    let lastError: any = null;
+    const startTime = Date.now();
+    metrics.totalRequests += 1;
+
+    for (let i = 0; i < candidateModels.length; i++) {
+      const model = candidateModels[i];
+      const maxRetries = 2;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-          await new Promise((r) => setTimeout(r, 400));
-          const retryRes = await ai.models.generateContent({
-            ...params,
+          const response = await ai.models.generateContent({
             model,
+            contents: params.contents,
+            config: params.config,
           });
-          return retryRes;
-        } catch (retryErr) {
-          lastError = retryErr;
-          continue;
+
+          const latencyMs = Date.now() - startTime;
+          metrics.successfulRequests += 1;
+          metrics.lastLatencyMs = latencyMs;
+          metrics.lastModelUsed = model;
+          if (params.role === 'vision') metrics.activeVisionModel = model;
+          if (params.role === 'text') metrics.activeTextModel = model;
+
+          return { response, modelUsed: model, latencyMs };
+        } catch (err: any) {
+          lastError = err;
+          const { category, retryable } = this.categorizeError(err);
+          metrics.lastErrorCategory = category;
+          metrics.lastErrorTimestamp = new Date().toISOString();
+
+          console.warn(
+            `[AIProviderService] Role=${params.role} Model=${model} Attempt=${attempt + 1}/${maxRetries} Error=${category}: ${err?.message?.substring(0, 100)}`
+          );
+
+          // If retryable (e.g. 503 spike), brief bounded backoff
+          if (retryable && attempt < maxRetries - 1) {
+            await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+            continue;
+          }
+
+          // Otherwise break and switch immediately to next candidate model
+          break;
         }
       }
     }
-  }
 
-  throw lastError;
+    metrics.failedRequests += 1;
+    throw lastError;
+  }
 }
 
-// Low-cost / Local OCR endpoint (Uses Tesseract.js in Node, ZERO Gemini tokens!)
+// =========================================================================
+// API Routes
+// =========================================================================
+
+// Health & Developer Diagnostics Endpoint
+app.get('/api/health', (_req: Request, res: Response) => {
+  return res.json({
+    status: apiKey ? 'healthy' : 'degraded_no_key',
+    hasApiKey: Boolean(apiKey),
+    configuredModels: {
+      vision: ROLE_MODELS.vision,
+      text: ROLE_MODELS.text,
+      reasoning: ROLE_MODELS.reasoning,
+    },
+    metrics,
+    activeRoutes: [
+      '/api/health',
+      '/api/health/test-vision',
+      '/api/hse-analyze',
+      '/api/analyze-screenshot',
+      '/api/execute-action',
+      '/api/local-ocr',
+    ],
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Interactive Vision Test Tool (Sends small non-sensitive image to verify multimodal capability)
+app.post('/api/health/test-vision', async (req: Request, res: Response) => {
+  try {
+    const { testImageBase64 } = req.body;
+    // Default: 1x1 green PNG test image
+    const sampleBase64 =
+      testImageBase64 ||
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+    const { data: cleanedData, mimeType: cleanedMime } = stripBase64(sampleBase64);
+
+    const { response, modelUsed, latencyMs } = await AIProviderService.executeWithFallback({
+      role: 'vision',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: cleanedData,
+                mimeType: cleanedMime || 'image/png',
+              },
+            },
+            {
+              text: 'Respond with exactly one word: "VISION_READY".',
+            },
+          ],
+        },
+      ],
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+      },
+    });
+
+    return res.json({
+      status: 'success',
+      modelUsed,
+      latencyMs,
+      output: (response.text || '').trim(),
+      message: 'Multimodal vision model verified and fully operational.',
+    });
+  } catch (err: any) {
+    const { category, message, httpStatus } = AIProviderService.categorizeError(err);
+    return res.status(httpStatus).json({
+      status: 'error',
+      errorCategory: category,
+      error: message,
+    });
+  }
+});
+
+// Local OCR endpoint (Uses Tesseract.js in Node, ZERO Gemini tokens!)
 app.post('/api/local-ocr', async (req: Request, res: Response) => {
   try {
     const { imageBase64 } = req.body;
@@ -100,25 +255,30 @@ app.post('/api/local-ocr', async (req: Request, res: Response) => {
   }
 });
 
-// Fallback Analyze Screenshot (Only if client explicitly requests remote fallback)
+// Analyze Screenshot (Semantic Screenshot Intelligence)
 app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
+  const reqId = `req_${Date.now()}`;
   try {
     const { imageBase64, mimeType = 'image/png' } = req.body;
     if (!imageBase64) {
-      return res.status(400).json({ error: 'No image provided' });
+      return res.status(400).json({ error: 'No image provided', requestId: reqId });
     }
-
-    const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
 
     if (!apiKey) {
       return res.status(500).json({
         error: 'GEMINI_API_KEY is not configured on the server.',
+        errorCategory: 'AUTHENTICATION_ERROR',
+        requestId: reqId,
       });
     }
 
+    const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
+
     const systemInstruction = `You are SnapAction AI. Analyze this screenshot semantically. Return JSON conforming to schema.`;
 
-    const response = await generateContentWithFallback({
+    const { response } = await AIProviderService.executeWithFallback({
+      role: 'vision',
+      reqId,
       contents: [
         {
           role: 'user',
@@ -214,23 +374,30 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
     const text = response.text || '{}';
     return res.json(JSON.parse(text));
   } catch (error: any) {
-    console.error('Error analyzing screenshot:', error);
-    return res.status(500).json({
-      error: error?.message || 'Failed to analyze screenshot.',
+    const { category, message, httpStatus } = AIProviderService.categorizeError(error);
+    return res.status(httpStatus).json({
+      error: message,
+      errorCategory: category,
+      requestId: reqId,
     });
   }
 });
 
-// HSE Vision: Photo Hazard Inspection Analysis Engine
+// HSE Vision: Mandatory Multimodal Vision for Worksite Photographs
 app.post('/api/hse-analyze', async (req: Request, res: Response) => {
+  const reqId = `hse_${Date.now()}`;
   try {
     const { imageBase64, mimeType = 'image/png', jurisdiction = 'International (OSHA/ISO)' } = req.body;
     if (!imageBase64) {
-      return res.status(400).json({ error: 'No worksite image provided' });
+      return res.status(400).json({ error: 'No worksite image provided', requestId: reqId });
     }
 
     if (!apiKey) {
-      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+      return res.status(500).json({
+        error: 'GEMINI_API_KEY is not configured on the server.',
+        errorCategory: 'AUTHENTICATION_ERROR',
+        requestId: reqId,
+      });
     }
 
     const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
@@ -271,7 +438,9 @@ Perform an objective, photo-specific HSE inspection strictly following these non
    - Provide immediate action, engineering controls, administrative controls, and PPE.
    - Cite verified regulatory clauses (OSHA 1926/1910, ISO 45001, UK HSE, ILO C167). Never invent clause numbers.`;
 
-    const response = await generateContentWithFallback({
+    const { response, modelUsed, latencyMs } = await AIProviderService.executeWithFallback({
+      role: 'vision',
+      reqId,
       contents: [
         {
           role: 'user',
@@ -426,17 +595,29 @@ Perform an objective, photo-specific HSE inspection strictly following these non
       });
     }
 
-    return res.json(parsed);
+    return res.json({
+      ...parsed,
+      meta: {
+        modelUsed,
+        latencyMs,
+        requestId: reqId,
+      },
+    });
   } catch (error: any) {
     console.error('Error in HSE analysis:', error);
-    return res.status(500).json({
-      error: error?.message || 'Failed to perform HSE inspection analysis.',
+    const { category, message, httpStatus } = AIProviderService.categorizeError(error);
+    return res.status(httpStatus).json({
+      error: message,
+      errorCategory: category,
+      requestId: reqId,
+      retryable: category === 'SERVICE_OVERLOAD' || category === 'RATE_LIMITED',
     });
   }
 });
 
 // Execute Action: Text-First (Saves 95%+ of Gemini tokens by sending structured text instead of raw image)
 app.post('/api/execute-action', async (req: Request, res: Response) => {
+  const reqId = `act_${Date.now()}`;
   try {
     const {
       imageBase64,
@@ -453,12 +634,12 @@ app.post('/api/execute-action', async (req: Request, res: Response) => {
     if (!apiKey) {
       return res.status(500).json({
         error: 'GEMINI_API_KEY is not configured on the server.',
+        errorCategory: 'AUTHENTICATION_ERROR',
+        requestId: reqId,
       });
     }
 
     const parts: any[] = [];
-
-    // ONLY send image if no extracted text or markdown context is available
     const hasTextContext = Boolean((extractedText && extractedText.trim().length > 10) || (cleanMarkdown && cleanMarkdown.trim().length > 10));
 
     if (!hasTextContext && imageBase64 && !isTransformation) {
@@ -493,61 +674,23 @@ ${extractedText && !cleanMarkdown ? `Raw OCR Text:\n"""\n${extractedText}\n"""\n
 
 Generate the complete, high-quality, practical result.
 Guidelines based on action type:
-- If a message or reply: Write an authentic, polished draft ready to send. Include greeting/sign-off if appropriate.
+- If a message or reply: Write an authentic, polished draft ready to send in the user's selected style and language. Include greeting/sign-off if appropriate.
 - If a job pitch or cover letter: Write a tailored, persuasive letter matching the extracted skills and requirements.
 - If CV Keywords, ATS Keywords, or Resume Sentences is requested: Generate a complete CV/resume optimization kit:
-  1. ATS Keyword & Skill Extraction Table:
-     | ATS Keyword / Skill | Category (Core / Technical / Tool / Soft) | Recommended Similar / Adjacent Skills | Ready-to-Paste CV Sentence (XYZ Formula) |
-     | :--- | :--- | :--- | :--- |
-  2. Recommended Similar & Adjacent Skills: Suggest 3-5 in-demand complementary tools and industry frameworks that recruiters expect alongside these keywords to make the CV stand out.
-  3. Ready-to-Integrate Resume Sections:
-     - Keyword-Dense Professional Summary / Headline (2-3 punchy sentences)
-     - Core Competencies Keyword Matrix (categorized for ATS scanners)
-     - High-Impact Work Experience Bullets (using strong action verbs like Spearheaded, Engineered, Accelerated, with quantifiable metrics)
-- If a financial/stock note: Summarize key levels, changes, takeaways, and add a brief disclaimer without speculative trading advice.
-- If a calendar or event: Structure the title, date/time, location, and brief agenda.
-- If a table or tabular data is requested (e.g. 'Convert into Table', 'Format as Table', 'Structured Table'): Output a clean, valid Markdown table with column headers:
-| Column 1 | Column 2 | Column 3 |
-| --- | --- | --- |
-| Data | Data | Data |
-- If SEO or keywords is requested: Generate:
-  1. Primary Focus Keyword & Search Intent (Informational, Transactional, Navigational)
-  2. Secondary & LSI Long-tail Keywords (with search intent & relevance)
-  3. Optimized Meta Title (strictly under 60 characters, high CTR)
-  4. Optimized Meta Description (strictly under 160 characters, with hook & CTA)
-  5. Recommended URL slug and H1/H2 Heading architecture
-  6. Content Keyword Density & Placement Recommendations
-- If Title, Caption, or Hashtags is requested: Generate:
-  1. 3 High-Converting Titles / Hooks (curious, benefit-driven, clickable)
-  2. Engaging Social Media Caption (formatted with storytelling hook, bullet points, emojis, and clear Call to Action)
-- If Image JSON Prompt is requested: Output a developer-ready Image Generation JSON Prompt specification formatted in a clean json code block containing:
-  model_target (Flux.1-Dev / Midjourney v6 / Imagen 3 / DALL-E 3),
-  prompt (ultra-detailed descriptive prompt specifying composition, textures, artistic style, camera angle, and lighting based on the screenshot),
-  negative_prompt (unwanted artifacts, blur, bad anatomy, text, distortions),
-  technical_attributes (camera_lens, lighting_style, color_palette, resolution),
-  parameters (aspect_ratio, cfg_scale, steps, sampler, seed),
-  and api_request_payload (standard ready-to-call REST API payload format).
-- If Video JSON Prompt is requested: Output a developer-ready Video Generation JSON Prompt specification formatted in a clean json code block containing:
-  model_target (Sora / Runway Gen-3 Alpha / Kling 1.5 / Luma Dream Machine),
-  scene_description (detailed cinematic scenario and subject kinematics based on the screenshot),
-  camera_motion (pan, tilt, zoom, dolly, tracking speed, lens focal length),
-  motion_pacing (tempo, velocity, physical dynamics),
-  parameters (duration_seconds, fps, aspect_ratio, resolution, motion_intensity),
-  timeline_keyframes (0s, 2.5s, 5s breakdown describing evolution),
-  audio_prompt (sound design and atmosphere),
-  and api_request_payload (standard ready-to-call REST API payload format).
-- If JSON Prompt Script or developer payload is requested: Output a developer-ready JSON Prompt Script configuration formatted in a clean json code block containing:
-  prompt_name, version, target_model, system_instruction, task_definition, input_variables, output_format, response_schema, few_shot_examples, recommended_parameters (temperature, max_tokens), curl_test_snippet, and developer_notes.
-- If code/troubleshooting: Explain the root cause in simple terms and provide the corrected code snippet.
-- If an article/summary: Provide structured key takeaways and actionable notes.
-- If an AI prompt: Provide a well-engineered prompt ready to paste into an LLM or image generator.
+  1. ATS Keyword & Skill Extraction Table
+  2. Recommended Similar & Adjacent Skills
+  3. Ready-to-Integrate Resume Sections (Professional Summary, Core Competencies, High-Impact Work Experience Bullets).
+- If Title, Caption, or Hashtags is requested: Generate clickable titles and engaging caption.
+- If Image JSON Prompt or Video JSON Prompt is requested: Output a developer-ready JSON specification formatted in a clean json code block.
 
 Output clean Markdown directly with no unnecessary filler preamble.`;
     }
 
     parts.push({ text: promptText });
 
-    const response = await generateContentWithFallback({
+    const { response, modelUsed } = await AIProviderService.executeWithFallback({
+      role: 'text',
+      reqId,
       contents: [{ role: 'user', parts }],
       config: {
         systemInstruction:
@@ -557,17 +700,14 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
     });
 
     const resultText = response.text || '';
-    return res.json({ result: resultText });
+    return res.json({ result: resultText, modelUsed, requestId: reqId });
   } catch (error: any) {
-    console.error('Error executing action:', error);
-    const msg = error?.message || '';
-    const userFriendlyMessage =
-      msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')
-        ? 'The AI model is experiencing a temporary spike in traffic. Please tap Try Again.'
-        : msg || 'Failed to execute action';
-
-    return res.status(503).json({
-      error: userFriendlyMessage,
+    const { category, message, httpStatus } = AIProviderService.categorizeError(error);
+    return res.status(httpStatus).json({
+      error: message,
+      errorCategory: category,
+      requestId: reqId,
+      retryable: category === 'SERVICE_OVERLOAD' || category === 'RATE_LIMITED',
     });
   }
 });
@@ -582,7 +722,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (req: Request, res: Response) => {
+    app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
