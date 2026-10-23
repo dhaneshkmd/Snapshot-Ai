@@ -96,26 +96,150 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
 
-  // Auto-generate if initialImageBase64 or rich initialText provided from outside
-  useEffect(() => {
-    if (initialImageBase64 && !document && !isGenerating) {
-      handleGenerateDocument();
-    }
-  }, [initialImageBase64]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
 
-  // Handle Pasting from Clipboard
-  const handlePasteClipboard = async () => {
+  // Automatically transcribe text from screenshot using Gemini / Tesseract
+  const transcribeScreenshot = async (base64: string) => {
+    setIsTranscribing(true);
+    setTranscribeNotice('Extracting text from screenshot...');
+    setErrorMessage(null);
     try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setInputText(text);
+      const res = await fetch('/api/transcribe-screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const extracted = (data.text || '').trim();
+        if (extracted) {
+          setInputText((prev) => {
+            const trimmed = prev.trim();
+            if (!trimmed) return extracted;
+            return `${trimmed}\n\n${extracted}`;
+          });
+          const wordCount = extracted.split(/\s+/).filter(Boolean).length;
+          setTranscribeNotice(`Extracted ${wordCount} words from screenshot`);
+        } else {
+          setTranscribeNotice('Screenshot attached. No plain text detected; you can type notes directly.');
+        }
+      } else {
+        setTranscribeNotice('Screenshot attached. Ready for document styling.');
       }
-    } catch {
-      // Fallback
+    } catch (err) {
+      console.warn('Transcription error:', err);
+      setTranscribeNotice('Screenshot attached.');
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
-  // Handle File Upload (txt, md, json, etc.)
+  // Auto-transcribe if initialImageBase64 provided from outside and text is empty
+  useEffect(() => {
+    if (initialImageBase64 && !inputText.trim()) {
+      transcribeScreenshot(initialImageBase64);
+    }
+  }, [initialImageBase64]);
+
+  // Global window paste handler to capture Ctrl+V / Cmd+V screenshots from anywhere on the screen
+  useEffect(() => {
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            await handleImageUpload(file);
+          }
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, []);
+
+  // Handle Pasting from Clipboard (handles images, screenshots, and text)
+  const handlePasteClipboard = async () => {
+    setTranscribeNotice(null);
+    try {
+      // 1. Try reading clipboard items directly for images/screenshots
+      if (navigator.clipboard?.read) {
+        try {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            const imageType = item.types.find((t) => t.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              const file = new File([blob], 'clipboard-screenshot.png', { type: imageType });
+              await handleImageUpload(file);
+              return;
+            }
+          }
+        } catch (readErr) {
+          console.warn('Clipboard image reading not permitted:', readErr);
+        }
+      }
+
+      // 2. Read text from clipboard
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setInputText((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+        setTranscribeNotice('Pasted text from clipboard');
+      } else {
+        setTranscribeNotice('Clipboard is empty or contains no supported data. Use Ctrl+V to paste directly.');
+      }
+    } catch (err) {
+      console.warn('Clipboard readText failed:', err);
+      setTranscribeNotice('Please press Ctrl+V to paste screenshot or text directly into the box.');
+    }
+  };
+
+  // Direct paste event listener on the textarea or container
+  const handlePasteEvent = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          await handleImageUpload(file);
+        }
+        return;
+      }
+    }
+  };
+
+  // Drop event listener for dragging images directly into the studio
+  const handleDropEvent = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        await handleImageUpload(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          if (content) setInputText(content);
+        };
+        reader.readAsText(file);
+      }
+    }
+  };
+
+  // Handle File Upload (txt, md, json, or images)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -135,16 +259,21 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     reader.readAsText(file);
   };
 
-  // Handle Image Upload (screenshot of handwritten notes or slides)
+  // Handle Image Upload (screenshot of handwritten notes, tables, WhatsApp, slides)
   const handleImageUpload = async (file: File) => {
     try {
       const optimized = await optimizeScreenshot(file, 1280, 0.85);
       setInputImage(optimized.base64);
+      // Automatically transcribe the screenshot into notes
+      await transcribeScreenshot(optimized.base64);
     } catch {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const b64 = event.target?.result as string;
-        if (b64) setInputImage(b64);
+        if (b64) {
+          setInputImage(b64);
+          await transcribeScreenshot(b64);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -576,31 +705,84 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
               )}
             </div>
 
-            {/* Large Input Textarea */}
-            <div className="relative">
+            {/* Live Transcription Status Alert */}
+            {isTranscribing && (
+              <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-semibold animate-pulse">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400 shrink-0" />
+                <span>Extracting & transcribing text from screenshot into editor...</span>
+              </div>
+            )}
+
+            {!isTranscribing && transcribeNotice && (
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>{transcribeNotice}</span>
+                </div>
+                <button
+                  onClick={() => setTranscribeNotice(null)}
+                  className="text-emerald-600 hover:text-emerald-800 dark:hover:text-emerald-200 text-xs font-bold px-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Large Input Textarea with direct paste & drag-drop */}
+            <div
+              className="relative"
+              onDrop={handleDropEvent}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste your notes, thoughts, screenshots or rough content here...&#10;&#10;e.g.: &quot;meeting monday client not happy delay material project progress 70% site safety issue three workers need training send updated report next week rajesh procurement follow up vendor&quot;"
+                onPaste={handlePasteEvent}
+                placeholder="Paste your notes or press Ctrl+V / tap Paste Screenshot to extract text automatically...&#10;&#10;e.g.: &quot;meeting monday client not happy delay material project progress 70% site safety issue three workers need training send updated report next week rajesh procurement follow up vendor&quot;"
                 rows={7}
-                className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y"
+                className="w-full p-4 pr-32 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-y"
               />
 
               {/* Image thumbnail badge if uploaded */}
               {inputImage && (
-                <div className="absolute top-3 right-3 flex items-center gap-2 p-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700 shadow-md">
-                  <img
-                    src={inputImage}
-                    alt="Thumbnail"
-                    className="w-10 h-10 object-cover rounded-lg"
-                  />
-                  <button
-                    onClick={() => setInputImage(null)}
-                    className="text-slate-400 hover:text-rose-500 p-1"
-                    title="Remove Image"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <div className="absolute top-3 right-3 flex items-center gap-2 p-1.5 rounded-xl bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-md backdrop-blur-xs">
+                  <div className="relative">
+                    <img
+                      src={inputImage}
+                      alt="Screenshot thumbnail"
+                      className="w-11 h-11 object-cover rounded-lg border border-slate-200 dark:border-slate-700"
+                    />
+                    {isTranscribing && (
+                      <div className="absolute inset-0 bg-blue-600/70 rounded-lg flex items-center justify-center">
+                        <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1 pr-1">
+                    <button
+                      onClick={() => transcribeScreenshot(inputImage)}
+                      disabled={isTranscribing}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                      title="Re-extract text from screenshot"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Re-scan
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInputImage(null);
+                        setTranscribeNotice(null);
+                      }}
+                      className="text-[10px] font-semibold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                      title="Remove Image"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remove
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -627,14 +809,15 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
                 <button
                   onClick={handlePasteClipboard}
                   className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Paste screenshot image or text from clipboard"
                 >
                   <Clipboard className="w-3.5 h-3.5 text-emerald-500" />
-                  Paste Text
+                  Paste Screenshot / Text
                 </button>
               </div>
 
               {/* Character count */}
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] font-medium text-slate-400">
                 {inputText.length} characters
               </span>
             </div>

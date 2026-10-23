@@ -30,13 +30,18 @@ const ai = new GoogleGenAI({
 });
 
 function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string } {
-  if (dataUrlOrBase64.startsWith('data:')) {
-    const match = dataUrlOrBase64.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      return { mimeType: match[1], data: match[2] };
+  if (!dataUrlOrBase64) return { mimeType: 'image/png', data: '' };
+  const str = String(dataUrlOrBase64).trim();
+  if (str.startsWith('data:')) {
+    const commaIndex = str.indexOf(',');
+    if (commaIndex !== -1) {
+      const mimeMatch = str.substring(0, commaIndex).match(/^data:([^;]+);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+      const data = str.substring(commaIndex + 1).replace(/\s+/g, '');
+      return { mimeType, data };
     }
   }
-  return { mimeType: 'image/png', data: dataUrlOrBase64 };
+  return { mimeType: 'image/png', data: str.replace(/\s+/g, '') };
 }
 
 function parseJsonSafe(raw: string): any {
@@ -266,6 +271,87 @@ app.post('/api/local-ocr', async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message, text: '' });
   }
 });
+
+// High-Fidelity Screenshot Transcription & OCR Endpoint
+// Uses Gemini 2.5 Flash multimodal vision for immediate, structure-preserving text extraction,
+// with graceful fallback to Tesseract if upstream AI is unavailable.
+const handleTranscribeScreenshot = async (req: Request, res: Response) => {
+  const reqId = `ocr_${Date.now()}`;
+  try {
+    const { imageBase64, mimeType = 'image/png' } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'No screenshot or image provided', text: '' });
+    }
+
+    const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
+    const finalMime = cleanedMime || mimeType;
+
+    // 1. Try Gemini 2.5 Flash (highest fidelity for tables, handwriting, WhatsApp & screenshots)
+    if (apiKey) {
+      try {
+        const responseResult = await AIProviderService.executeWithFallback({
+          role: 'vision',
+          reqId,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    data: cleanedData,
+                    mimeType: finalMime,
+                  },
+                },
+                {
+                  text: `Transcribe and extract ALL visible text, tables, numbers, bullet points, headers, handwritten or printed notes from this screenshot verbatim and completely.
+Rules:
+- Preserve logical ordering, bullet points, numbered items, and data tables.
+- If a table or grid is visible, transcribe each row clearly with columns separated by " | ".
+- Do NOT summarize, interpret, or omit any details.
+- Output ONLY the transcribed content. Do NOT include conversational prefixes like "Here is the transcription:" or markdown code blocks.`,
+                },
+              ],
+            },
+          ],
+        });
+
+        let extractedText = responseResult.response.text?.trim() || '';
+        // Clean any accidental conversational introductory line
+        extractedText = extractedText
+          .replace(/^(Here (is|are) (the )?transcription[^\n]*\n+|Here's the transcription[^\n]*\n+)/i, '')
+          .replace(/^```[a-z]*\n/i, '')
+          .replace(/\n```$/i, '')
+          .trim();
+
+        if (extractedText.length > 0) {
+          return res.json({
+            text: extractedText,
+            engine: 'gemini',
+            model: responseResult.modelUsed,
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn(`[OCR] Gemini extraction failed (${geminiErr?.message?.substring(0, 80)}), falling back to Tesseract...`);
+      }
+    }
+
+    // 2. Tesseract OCR Fallback
+    const buffer = Buffer.from(cleanedData, 'base64');
+    const result = await Tesseract.recognize(buffer, 'eng');
+    const tesseractText = (result.data.text || '').trim();
+
+    return res.json({
+      text: tesseractText,
+      engine: 'tesseract',
+    });
+  } catch (err: any) {
+    console.error('[OCR] All transcription engines failed:', err);
+    return res.status(500).json({ error: err.message || 'Failed to extract text from screenshot', text: '' });
+  }
+};
+
+app.post('/api/transcribe-screenshot', handleTranscribeScreenshot);
+app.post('/api/transcribe-screenshot/', handleTranscribeScreenshot);
 
 // Analyze Screenshot (Semantic Screenshot Intelligence)
 app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
@@ -550,20 +636,7 @@ NON-NEGOTIABLE CORE PRINCIPLES:
    - Length Mode: ${lengthMode} (concise = tight summary; standard = balanced document; detailed = thorough elaboration of all noted items).
    - Target Language: Output the document title, headings, and entire content strictly in ${language}.`;
 
-    const userPrompt = `Transform this raw content into a beautifully structured, publication-grade professional document:
-
-RAW CONTENT / NOTES:
-"""
-${notesText || '[Image screenshot provided — analyze visible text and diagrams]'}
-"""
-
-Requested Document Type: ${documentType || 'Auto-Detect Most Appropriate'}
-Target Language: ${language}
-Writing Style: ${writingStyle}
-Document Length: ${lengthMode}
-Mode: ${quickMode}
-
-Return a valid JSON object matching this schema:
+    const schemaPrompt = `Return a valid JSON object matching this schema:
 {
   "title": string (engaging, professional document title derived from content),
   "subtitle": string (optional descriptive subtitle or department/topic line),
@@ -604,6 +677,36 @@ Return a valid JSON object matching this schema:
     }
   ]
 }`;
+
+    const userPrompt = imageBase64 && !notesText.trim()
+      ? `A screenshot image has been provided as the source material.
+CRITICAL INSTRUCTION:
+1. Examine the screenshot image thoroughly and extract EVERY SINGLE visible piece of information, text line, numbers, headings, tables, dates, and names verbatim.
+2. Under NO circumstances output generic placeholder text (e.g. "Review of project parameters, current state..."). Every section, bullet point, table, and summary MUST be derived strictly and exclusively from the actual text visible in the uploaded screenshot.
+3. Organize the extracted information into a publication-grade, professionally structured document conforming to the JSON schema.
+
+Requested Document Type: ${documentType || 'Auto-Detect Most Appropriate from image content'}
+Target Language: ${language}
+Writing Style: ${writingStyle}
+Document Length: ${lengthMode}
+Mode: ${quickMode}
+
+${schemaPrompt}`
+      : `Transform this raw content into a beautifully structured, publication-grade professional document:
+
+RAW CONTENT / NOTES:
+"""
+${notesText}
+"""
+${imageBase64 ? 'Note: A supporting screenshot image is also attached. Incorporate all details visible in both the notes and screenshot.' : ''}
+
+Requested Document Type: ${documentType || 'Auto-Detect Most Appropriate'}
+Target Language: ${language}
+Writing Style: ${writingStyle}
+Document Length: ${lengthMode}
+Mode: ${quickMode}
+
+${schemaPrompt}`;
 
     let responseResult;
     if (imageBase64) {

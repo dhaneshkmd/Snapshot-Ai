@@ -234,7 +234,9 @@ export function generateLocalFallbackDocument(params: {
         text:
           discussionItems.length > 0
             ? 'The following items capture core discussion points, observations, and relevant updates noted during the reporting period:'
-            : 'Review of project parameters, current state, and operational updates based on source documentation.',
+            : hasImage
+            ? 'Source visual document attached. Transcribed notes will appear here once extracted.'
+            : 'Core discussion points and operational observations based on provided notes.',
       },
       {
         type: 'list',
@@ -243,7 +245,9 @@ export function generateLocalFallbackDocument(params: {
         items:
           discussionItems.length > 0
             ? discussionItems.map((item) => capitalizeFirst(item))
-            : ['Review of active progress and baseline commitments', 'Assessment of constraints and pending dependencies', 'Staff and team coordination updates'],
+            : hasImage
+            ? ['Visual record attached for processing', 'Review transcribed items or edit notes in the workspace']
+            : ['Review provided notes and action items'],
       },
     ],
   });
