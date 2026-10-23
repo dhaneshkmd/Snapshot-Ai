@@ -221,6 +221,182 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
   }
 });
 
+// HSE Vision: Photo Hazard Inspection Analysis Engine
+app.post('/api/hse-analyze', async (req: Request, res: Response) => {
+  try {
+    const { imageBase64, mimeType = 'image/png', jurisdiction = 'International (OSHA/ISO)' } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'No worksite image provided' });
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+    }
+
+    const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
+
+    const systemInstruction = `You are an elite, certified HSE (Health, Safety, and Environment) Auditor and Chartered Safety Inspector.
+You analyze worksite photographs across construction, civil engineering, manufacturing, oil & gas, warehouses, energy, and transportation.
+Perform a rigorous, objective HSE inspection based strictly on visible photo evidence:
+1. Recognize the worksite activity, plant, tools, and equipment.
+2. Identify visible hazards, unsafe conditions, and unsafe acts.
+3. Identify existing positive safety controls (do NOT assume every photo has violations; if controls are adequate, note them as positive observations).
+4. For each potential hazard, specify accurate xPercent (0-100) and yPercent (0-100) coordinates to place visual pin markers on the photograph.
+5. Classify findings into:
+   - "Visible Finding" (directly supported by photograph)
+   - "Potential Concern" (plausible hazard requiring field verification)
+   - "Not Verifiable From Photo" (requires documentation, measurements, or interviews)
+6. Assign realistic 1-5 Likelihood (1=Rare to 5=Almost Certain) and 1-5 Severity (1=Insignificant to 5=Catastrophic).
+7. Propose Hierarchy of Controls: Immediate Action, Engineering Controls, Administrative Controls, and PPE.
+8. Cite real, verified regulatory standards (OSHA 1926/1910, ISO 45001, UK HSE, ILO C167). Never invent clause numbers.
+9. Outline positive controls and matters requiring on-site field verification.`;
+
+    const response = await generateContentWithFallback({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: cleanedData,
+                mimeType: cleanedMime || mimeType,
+              },
+            },
+            {
+              text: `Conduct a professional HSE workplace safety inspection. Jurisdiction preference: ${jurisdiction}.`,
+            },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            reportTitle: { type: Type.STRING },
+            siteName: { type: Type.STRING },
+            projectNumber: { type: Type.STRING },
+            workArea: { type: Type.STRING },
+            activityObserved: { type: Type.STRING },
+            inspectorName: { type: Type.STRING },
+            inspectorDesignation: { type: Type.STRING },
+            executiveSummary: { type: Type.STRING },
+            overallSiteRisk: { type: Type.STRING },
+            observations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  markerNumber: { type: Type.NUMBER },
+                  xPercent: { type: Type.NUMBER },
+                  yPercent: { type: Type.NUMBER },
+                  hazardCategory: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  observedCondition: { type: Type.STRING },
+                  potentialConsequences: { type: Type.STRING },
+                  exposedParties: { type: Type.STRING },
+                  evidenceClassification: { type: Type.STRING },
+                  existingControls: { type: Type.STRING },
+                  missingOrQuestionableControls: { type: Type.STRING },
+                  likelihood: { type: Type.NUMBER },
+                  severity: { type: Type.NUMBER },
+                  immediateAction: { type: Type.STRING },
+                  engineeringControls: { type: Type.STRING },
+                  administrativeControls: { type: Type.STRING },
+                  ppeRequired: { type: Type.STRING },
+                  residualRisk: { type: Type.STRING },
+                  actionStatus: { type: Type.STRING },
+                  fieldVerificationQuestions: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                },
+                required: [
+                  'id',
+                  'markerNumber',
+                  'xPercent',
+                  'yPercent',
+                  'hazardCategory',
+                  'title',
+                  'observedCondition',
+                  'potentialConsequences',
+                  'evidenceClassification',
+                  'likelihood',
+                  'severity',
+                  'immediateAction',
+                ],
+              },
+            },
+            positiveObservations: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  xPercent: { type: Type.NUMBER },
+                  yPercent: { type: Type.NUMBER },
+                },
+                required: ['id', 'title', 'description', 'category'],
+              },
+            },
+            mattersRequiringFieldVerification: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+          },
+          required: [
+            'reportTitle',
+            'workArea',
+            'activityObserved',
+            'executiveSummary',
+            'overallSiteRisk',
+            'observations',
+            'positiveObservations',
+            'mattersRequiringFieldVerification',
+          ],
+        },
+      },
+    });
+
+    const text = response.text || '{}';
+    const parsed = JSON.parse(text);
+
+    // Ensure riskScore and riskRating are consistently calculated
+    if (parsed.observations && Array.isArray(parsed.observations)) {
+      parsed.observations = parsed.observations.map((obs: any, idx: number) => {
+        const l = Math.max(1, Math.min(5, Math.round(Number(obs.likelihood) || 3)));
+        const s = Math.max(1, Math.min(5, Math.round(Number(obs.severity) || 3)));
+        const score = l * s;
+        const rating = score >= 15 ? 'Critical' : score >= 10 ? 'High' : score >= 5 ? 'Medium' : 'Low';
+        return {
+          ...obs,
+          markerNumber: obs.markerNumber || idx + 1,
+          likelihood: l,
+          severity: s,
+          riskScore: score,
+          riskRating: rating,
+          actionStatus: obs.actionStatus || 'Open',
+          residualRisk: obs.residualRisk || 'Low',
+          applicableStandards: [],
+        };
+      });
+    }
+
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error('Error in HSE analysis:', error);
+    return res.status(500).json({
+      error: error?.message || 'Failed to perform HSE inspection analysis.',
+    });
+  }
+});
+
 // Execute Action: Text-First (Saves 95%+ of Gemini tokens by sending structured text instead of raw image)
 app.post('/api/execute-action', async (req: Request, res: Response) => {
   try {

@@ -7,9 +7,14 @@ import { SnapActionLogo } from './SnapActionLogo';
 interface HomeScreenProps {
   onImageSelected: (imageBase64: string, mimeType: string, filename?: string) => void;
   isProcessing?: boolean;
+  onOpenHseVision?: () => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ onImageSelected, isProcessing }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({
+  onImageSelected,
+  isProcessing,
+  onOpenHseVision,
+}) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -293,8 +298,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onImageSelected, isProce
         )}
       </div>
 
+      {/* HSE Vision — Photo Hazard Inspection Fast Launch Card */}
+      {onOpenHseVision && (
+        <div className="w-full mt-6">
+          <button
+            onClick={onOpenHseVision}
+            className="w-full text-left p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white shadow-lg shadow-orange-500/20 active:scale-[0.99] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-100">
+                  <span>🦺</span> Smart HSE Vision
+                </div>
+                <div className="text-base sm:text-lg font-black tracking-tight">
+                  Worksite Photo Hazard Inspection
+                </div>
+                <div className="text-xs text-amber-100/90 line-clamp-1">
+                  Photo → Visual Pin Markers → 5×5 Risk Matrix → Action Register → Formal Report
+                </div>
+              </div>
+              <div className="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">
+                <span className="text-base font-bold">→</span>
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* Examples section: Try a screenshot */}
-      <div className="w-full mt-8 space-y-3">
+      <div className="w-full mt-6 space-y-3">
         <div className="flex items-center justify-between px-2">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
             Try a screenshot

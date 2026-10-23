@@ -4,8 +4,8 @@ import { LanguageOption } from '../modules/languages/languageData';
 import { SnapActionLogo } from './SnapActionLogo';
 
 interface HeaderProps {
-  currentTab: 'home' | 'history' | 'settings';
-  onSelectTab: (tab: 'home' | 'history' | 'settings') => void;
+  currentTab: 'home' | 'history' | 'settings' | 'hse';
+  onSelectTab: (tab: 'home' | 'history' | 'settings' | 'hse') => void;
   historyCount: number;
   darkMode: boolean;
   onToggleTheme: () => void;
@@ -42,6 +42,20 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action icons / Navigation */}
         <div className="flex items-center gap-1.5">
+          {/* HSE Vision Fast Mode Switcher */}
+          <button
+            onClick={() => onSelectTab(currentTab === 'hse' ? 'home' : 'hse')}
+            title="HSE Vision — Photo Hazard Inspection"
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+              currentTab === 'hse'
+                ? 'bg-orange-600 text-white border-orange-700 shadow-orange-600/30 ring-2 ring-orange-500/30'
+                : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60'
+            }`}
+          >
+            <span>🦺</span>
+            <span className="hidden sm:inline">HSE Vision</span>
+          </button>
+
           {pwaInstallPrompt && (
             <button
               onClick={onInstallPwa}
