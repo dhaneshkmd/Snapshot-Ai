@@ -15,10 +15,22 @@ export interface StandardKnowledgeItem {
 export const VERIFIED_HSE_STANDARDS: Record<HazardCategory, StandardReference[]> = {
   'Working at Height': [
     {
+      standard: 'OSHA 29 CFR 1926.760',
+      title: 'Steel Erection - Fall Protection Requirements',
+      clause: '1926.760(a)(1)',
+      summary: 'Each employee engaged in a steel erection activity on a walking/working surface with an unprotected edge more than 15 feet (4.6m) above a lower level shall be protected by guardrails, safety nets, or personal fall arrest.',
+    },
+    {
       standard: 'OSHA 29 CFR 1926.501(b)(1)',
       title: 'Duty to have fall protection (Unprotected sides & edges)',
       clause: '1926.501(b)(1)',
       summary: 'Guardrail systems, safety net systems, or personal fall arrest systems required at 6 feet (1.8m) or higher.',
+    },
+    {
+      standard: 'ISO 16368 / ANSI A92.22',
+      title: 'Mobile Elevating Work Platforms (MEWPs) - Safe Use & Fall Arrest',
+      clause: 'ANSI A92.22 §6.8',
+      summary: 'All occupants in boom-type MEWPs must wear full body harnesses with lanyards attached to certified manufacturer anchorage points.',
     },
     {
       standard: 'ISO 45001:2018',

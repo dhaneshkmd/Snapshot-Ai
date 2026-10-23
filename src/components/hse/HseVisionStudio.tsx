@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud,
   Camera,
@@ -18,6 +18,10 @@ import {
   Share2,
   Eye,
   Sliders,
+  HardHat,
+  Search,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import {
   HseInspectionReport,
@@ -42,6 +46,11 @@ interface HseVisionStudioProps {
   onBackToMain?: () => void;
   globalLanguage: LanguageOption;
   onOpenLanguageSelector: () => void;
+  initialPhoto?: {
+    base64: string;
+    mimeType: string;
+    filename?: string;
+  };
 }
 
 export type HseStudioTab = 'canvas' | 'actions' | 'before_after' | 'report';
@@ -50,25 +59,55 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   onBackToMain,
   globalLanguage,
   onOpenLanguageSelector,
+  initialPhoto,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const activeReqSeqRef = useRef<number>(0);
 
   // Inspection Dossier State
   const [report, setReport] = useState<HseInspectionReport | null>(null);
   const [activeTab, setActiveTab] = useState<HseStudioTab>('canvas');
   const [selectedObsId, setSelectedObsId] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<string>('Analyzing worksite photograph...');
+  const [analysisError, setAnalysisError] = useState<{
+    message: string;
+    photoBase64: string;
+    mimeType: string;
+    filename?: string;
+  } | null>(null);
   const [sampleLoadingId, setSampleLoadingId] = useState<string | null>(null);
   const [isEditingMarkers, setIsEditingMarkers] = useState(false);
   const [afterPhotoSrc, setAfterPhotoSrc] = useState<string | null>(null);
+  const [lastProcessedPhotoId, setLastProcessedPhotoId] = useState<string | null>(null);
+
+  // Auto-analyze initialPhoto if provided from home screen or action card
+  useEffect(() => {
+    if (initialPhoto && initialPhoto.base64) {
+      const photoKey = `photo_${initialPhoto.base64.length}_${initialPhoto.base64.slice(100, 140)}`;
+      if (lastProcessedPhotoId !== photoKey) {
+        setLastProcessedPhotoId(photoKey);
+        analyzePhotoWithAi(initialPhoto.base64, initialPhoto.mimeType, initialPhoto.filename);
+      }
+    }
+  }, [initialPhoto]);
+
+  // Generate lightweight unique fingerprint for image session isolation
+  const computeImageHash = (b64: string): string => {
+    return `HASH-${b64.length}-${b64.slice(50, 70).replace(/[^a-zA-Z0-9]/g, '')}`;
+  };
 
   // 1. Load an authentic sample scenario for rapid demo & testing
   const handleSelectSample = async (scenario: HseSampleScenario) => {
     try {
       setSampleLoadingId(scenario.id);
+      setAnalysisError(null);
       const svg = scenario.getSvg();
       const pngBase64 = await svgToPngBase64(svg, 1000, 700);
+
+      // Session isolation: reset in-flight state
+      activeReqSeqRef.current += 1;
 
       const newPhoto: InspectedPhoto = {
         id: `photo_${Date.now()}`,
@@ -80,17 +119,20 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
       };
 
       const newReport: HseInspectionReport = {
-        id: `HSE-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        reportTitle: `${scenario.industry} Safety Audit`,
+        id: `HSE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
+        imageHash: computeImageHash(pngBase64),
+        reportTitle: `${scenario.title} — HSE Safety Audit`,
         inspectionDate: new Date().toISOString().split('T')[0],
         inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        siteName: 'Al-Ain International Terminal Expansion',
-        projectNumber: 'PKG-04B-CIV',
+        siteName: 'Terminal Expansion Project',
+        projectNumber: 'PKG-04B-IND',
         workArea: scenario.workArea,
+        primaryActivity: scenario.activity,
+        secondaryActivities: [scenario.industry],
         activityObserved: scenario.activity,
-        inspectorName: 'Senior Safety Auditor (Competent Person)',
-        inspectorDesignation: 'Chartered HSE Inspector (NEBOSH / CMIOSH)',
-        executiveSummary: `Worksite visual inspection conducted at ${scenario.workArea}. Observed activity: ${scenario.activity}. ${scenario.description}. Evaluation identified ${scenario.defaultObservations.length} potential hazard observation(s) requiring hierarchy of controls implementation, and ${scenario.defaultPositiveObservations.length} positive safety controls currently active.`,
+        inspectorName: 'Chartered HSE Inspector (NEBOSH / CMIOSH)',
+        inspectorDesignation: 'Lead Safety Auditor',
+        executiveSummary: `Worksite visual inspection conducted at ${scenario.workArea}. Observed primary activity: ${scenario.activity}. Evaluation identified ${scenario.defaultObservations.length} potential hazard observation(s) and ${scenario.defaultPositiveObservations.length} positive safety controls.`,
         photos: [newPhoto],
         selectedPhotoId: newPhoto.id,
         observations: scenario.defaultObservations,
@@ -114,7 +156,7 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   // 2. Upload / Camera File Handler
   const handlePhotoUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) return;
-    setIsAnalyzing(true);
+    setAnalysisError(null);
 
     try {
       const optimized = await optimizeScreenshot(file, 1280, 0.85);
@@ -131,10 +173,32 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
     }
   };
 
-  // 3. AI Vision Analysis Call
+  // 3. Dynamic AI Vision Analysis Call
   const analyzePhotoWithAi = async (base64: string, mimeType: string, filename?: string) => {
+    // Session isolation: create new request sequence ID and clear old report findings
+    const reqSeq = activeReqSeqRef.current + 1;
+    activeReqSeqRef.current = reqSeq;
+
     setIsAnalyzing(true);
+    setAnalysisError(null);
+    setReport(null); // Clear previous findings immediately
+    setSelectedObsId(null);
+    setAnalysisStep('1/4: Analyzing visual scene & worksite identity...');
+
     try {
+      // Progressive progress feedback
+      const timer1 = setTimeout(() => {
+        if (activeReqSeqRef.current === reqSeq) {
+          setAnalysisStep('2/4: Identifying people, plant, equipment & structural assets...');
+        }
+      }, 1200);
+
+      const timer2 = setTimeout(() => {
+        if (activeReqSeqRef.current === reqSeq) {
+          setAnalysisStep('3/4: Contextual hazard & positive control verification...');
+        }
+      }, 2500);
+
       const res = await fetch('/api/hse-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,76 +210,136 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
         }),
       });
 
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+
+      // Verify request is still active and not superseded by another upload
+      if (activeReqSeqRef.current !== reqSeq) {
+        return;
+      }
+
       if (!res.ok) {
-        throw new Error('AI analysis failed');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Inspection analysis failed with status ${res.status}`);
       }
 
       const data = await res.json();
+
+      // Ensure observation standards are populated
+      const enrichedObservations = (data.observations || []).map((obs: HazardObservation, idx: number) => {
+        const standards =
+          obs.applicableStandards && obs.applicableStandards.length > 0
+            ? obs.applicableStandards
+            : getApplicableStandards(obs.hazardCategory);
+        return {
+          ...obs,
+          id: obs.id || `HAZ-${String(idx + 1).padStart(2, '0')}`,
+          markerNumber: obs.markerNumber || idx + 1,
+          applicableStandards: standards,
+          actionStatus: obs.actionStatus || 'Open',
+        };
+      });
+
       const photo: InspectedPhoto = {
         id: `photo_${Date.now()}`,
         base64,
         mimeType,
-        caption: filename || 'Worksite Photo',
+        caption: filename || `${data.primaryActivity || 'Worksite'} Visual Inspection`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
       const createdReport: HseInspectionReport = {
-        ...data,
-        id: data.id || `HSE-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        photos: [photo],
-        selectedPhotoId: photo.id,
+        id: `HSE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
+        imageHash: computeImageHash(base64),
+        reportTitle: data.reportTitle || `${data.primaryActivity || 'Worksite'} HSE Safety Inspection`,
         inspectionDate: new Date().toISOString().split('T')[0],
         inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        siteName: data.siteName || 'Active Construction Project Sector',
+        projectNumber: data.projectNumber || 'PRJ-2026-HSE',
+        workArea: data.workArea || 'Active Worksite Zone',
+        primaryActivity: data.primaryActivity || data.activityObserved || 'Industrial Worksite Operation',
+        secondaryActivities: data.secondaryActivities || [],
+        activityObserved: data.activityObserved || data.primaryActivity || 'Worksite Operations',
+        inspectorName: data.inspectorName || 'Senior Safety Auditor (Competent Person)',
+        inspectorDesignation: data.inspectorDesignation || 'Chartered HSE Inspector (NEBOSH / CMIOSH)',
+        executiveSummary: data.executiveSummary || 'Visual workplace inspection completed.',
+        overallSiteRisk: data.overallSiteRisk || (enrichedObservations.length === 0 ? 'Low' : 'High'),
+        photos: [photo],
+        selectedPhotoId: photo.id,
+        observations: enrichedObservations,
+        positiveObservations: data.positiveObservations || [],
+        mattersRequiringFieldVerification: data.mattersRequiringFieldVerification || [],
+        jurisdiction: 'International (OSHA/ISO)',
         reportLanguage: globalLanguage.name,
       };
 
       setReport(createdReport);
-      setSelectedObsId(createdReport.observations[0]?.id || null);
+      setSelectedObsId(enrichedObservations[0]?.id || null);
       setActiveTab('canvas');
-    } catch (err) {
-      console.warn('API call failed, falling back to instant local template:', err);
-      // Fallback: load excavation scenario with uploaded image
-      const fallbackPhoto: InspectedPhoto = {
-        id: `photo_${Date.now()}`,
-        base64,
-        mimeType,
-        caption: filename || 'Worksite Inspection Photo',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      const fallbackScenario = HSE_SAMPLE_SCENARIOS[0];
-      setReport({
-        id: `HSE-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        reportTitle: 'Civil Works Safety Inspection',
-        inspectionDate: new Date().toISOString().split('T')[0],
-        inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        siteName: 'Project Worksite Sector 4',
-        projectNumber: 'PRJ-2026-CIV',
-        workArea: 'Active Working Zone',
-        activityObserved: 'Civil excavation & plant operations',
-        inspectorName: 'Lead HSE Auditor',
-        inspectorDesignation: 'HSE Engineer',
-        executiveSummary: `Worksite visual inspection recorded. Evaluated photo evidence for edge protection, plant segregation, access routes, and PPE compliance.`,
-        photos: [fallbackPhoto],
-        selectedPhotoId: fallbackPhoto.id,
-        observations: fallbackScenario.defaultObservations,
-        positiveObservations: fallbackScenario.defaultPositiveObservations,
-        mattersRequiringFieldVerification: fallbackScenario.defaultVerificationItems,
-        overallSiteRisk: 'High',
-        jurisdiction: 'International (OSHA/ISO)',
-        reportLanguage: globalLanguage.name,
-      });
-      setSelectedObsId('HAZ-01');
-      setActiveTab('canvas');
+    } catch (err: any) {
+      console.warn('AI analysis error:', err);
+      // STRICT REQUIREMENT: NEVER load hardcoded excavation hazards on failure!
+      if (activeReqSeqRef.current === reqSeq) {
+        setAnalysisError({
+          message: err?.message || 'Unable to complete AI vision analysis for this photograph.',
+          photoBase64: base64,
+          mimeType,
+          filename,
+        });
+      }
     } finally {
-      setIsAnalyzing(false);
+      if (activeReqSeqRef.current === reqSeq) {
+        setIsAnalyzing(false);
+      }
     }
+  };
+
+  // Start a clean manual inspection dossier (0 hardcoded findings, inspector places pins)
+  const handleStartManualInspection = (base64: string, mimeType: string, filename?: string) => {
+    setAnalysisError(null);
+    const photo: InspectedPhoto = {
+      id: `photo_${Date.now()}`,
+      base64,
+      mimeType,
+      caption: filename || 'Worksite Inspection Photo',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    const emptyReport: HseInspectionReport = {
+      id: `HSE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
+      imageHash: computeImageHash(base64),
+      reportTitle: 'Worksite HSE Photo Hazard Inspection',
+      inspectionDate: new Date().toISOString().split('T')[0],
+      inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      siteName: 'Site Project Area',
+      projectNumber: 'PRJ-2026',
+      workArea: 'Active Field Sector',
+      primaryActivity: 'Visual Worksite Inspection',
+      secondaryActivities: [],
+      activityObserved: 'Inspected activity',
+      inspectorName: 'Chartered Safety Inspector',
+      inspectorDesignation: 'Lead HSE Auditor',
+      executiveSummary: 'Worksite visual inspection initiated. Inspector can tap the photograph to annotate hazards and positive controls.',
+      photos: [photo],
+      selectedPhotoId: photo.id,
+      observations: [],
+      positiveObservations: [],
+      mattersRequiringFieldVerification: ['Verify daily permit-to-work and pre-shift briefing logs.'],
+      overallSiteRisk: 'Low',
+      jurisdiction: 'International (OSHA/ISO)',
+      reportLanguage: globalLanguage.name,
+    };
+
+    setReport(emptyReport);
+    setIsEditingMarkers(true); // Allow tapping photo to place pins
+    setActiveTab('canvas');
   };
 
   // Add a manual marker on canvas
   const handleAddMarker = (xPercent: number, yPercent: number) => {
     if (!report) return;
     const nextMarkerNum = report.observations.length + 1;
-    const newId = `HAZ-0${nextMarkerNum}`;
+    const newId = `HAZ-${String(nextMarkerNum).padStart(2, '0')}`;
 
     const newObs: HazardObservation = {
       id: newId,
@@ -223,33 +347,49 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
       xPercent,
       yPercent,
       hazardCategory: 'General Workplace Safety',
-      title: 'Inspector Identified Hazard',
-      observedCondition: 'Potentially unsafe condition noted by inspector during visual review.',
-      potentialConsequences: 'Injury risk or operational interruption.',
+      title: 'Inspector Identified Condition',
+      observedCondition: 'Potentially hazardous condition identified by inspector at this location.',
+      potentialConsequences: 'Exposure to injury, equipment damage, or operational interruption.',
       exposedParties: 'Worksite personnel',
       evidenceClassification: 'Visible Finding',
-      existingControls: 'To be verified',
-      missingOrQuestionableControls: 'Standard controls required',
+      existingControls: 'To be determined',
+      missingOrQuestionableControls: 'Hierarchy of controls required',
       likelihood: 3,
       severity: 3,
       riskScore: 9,
       riskRating: 'Medium',
-      immediateAction: 'Inspect condition and install appropriate protection.',
-      engineeringControls: 'Physical barriers or guarding',
-      administrativeControls: 'Brief crew during daily toolbox talk',
+      immediateAction: 'Direct personnel away from hazard zone; establish visual controls.',
+      engineeringControls: 'Provide guarding, barricades, or physical isolation.',
+      administrativeControls: 'Brief operatives in pre-shift toolbox meeting.',
       ppeRequired: 'Standard site PPE',
       residualRisk: 'Low',
       applicableStandards: getApplicableStandards('General Workplace Safety'),
-      fieldVerificationQuestions: ['Confirm physical condition and root cause.'],
+      fieldVerificationQuestions: ['Verify physical condition and assess root cause on site.'],
       actionStatus: 'Open',
     };
 
+    const updatedObservations = [...report.observations, newObs];
     setReport({
       ...report,
-      observations: [...report.observations, newObs],
+      observations: updatedObservations,
+      overallSiteRisk: updatedObservations.some((o) => o.riskRating === 'Critical')
+        ? 'Critical'
+        : updatedObservations.some((o) => o.riskRating === 'High')
+        ? 'High'
+        : 'Medium',
     });
     setSelectedObsId(newId);
     setIsEditingMarkers(false);
+  };
+
+  // Update marker position when dragged on canvas
+  const handleUpdateMarkerPosition = (id: string, xPercent: number, yPercent: number) => {
+    if (!report) return;
+    const updated = report.observations.map((obs) => {
+      if (obs.id !== id) return obs;
+      return { ...obs, xPercent, yPercent };
+    });
+    setReport({ ...report, observations: updated });
   };
 
   // Update observation fields
@@ -258,7 +398,6 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
     const updatedObs = report.observations.map((o) => {
       if (o.id !== id) return o;
       const merged = { ...o, ...updates };
-      // Recalculate risk rating if L or S changed
       if (updates.likelihood !== undefined || updates.severity !== undefined) {
         const { score, level } = calculateRiskLevel(merged.likelihood, merged.severity);
         merged.riskScore = score;
@@ -267,10 +406,15 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
       return merged;
     });
 
-    // Recalculate overall site risk
     const hasCritical = updatedObs.some((o) => o.riskRating === 'Critical');
     const hasHigh = updatedObs.some((o) => o.riskRating === 'High');
-    const overallRisk: RiskLevel = hasCritical ? 'Critical' : hasHigh ? 'High' : 'Medium';
+    const overallRisk: RiskLevel = hasCritical
+      ? 'Critical'
+      : hasHigh
+      ? 'High'
+      : updatedObs.length > 0
+      ? 'Medium'
+      : 'Low';
 
     setReport({
       ...report,
@@ -283,7 +427,17 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
   const handleDeleteObservation = (id: string) => {
     if (!report) return;
     const remaining = report.observations.filter((o) => o.id !== id);
-    setReport({ ...report, observations: remaining });
+    setReport({
+      ...report,
+      observations: remaining,
+      overallSiteRisk: remaining.some((o) => o.riskRating === 'Critical')
+        ? 'Critical'
+        : remaining.some((o) => o.riskRating === 'High')
+        ? 'High'
+        : remaining.length > 0
+        ? 'Medium'
+        : 'Low',
+    });
     if (selectedObsId === id) {
       setSelectedObsId(remaining[0]?.id || null);
     }
@@ -355,6 +509,59 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
         </div>
       </div>
 
+      {/* Error State Banner (No Fake Hazards Injected) */}
+      {analysisError && (
+        <div className="p-5 rounded-3xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                Analysis Notice
+              </h4>
+              <p className="text-xs text-rose-700 dark:text-rose-300">
+                {analysisError.message}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                In accordance with HSE integrity standards, we do not substitute unrelated sample hazards. You can retry the visual analysis or place observation markers manually.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
+            <button
+              onClick={() =>
+                analyzePhotoWithAi(
+                  analysisError.photoBase64,
+                  analysisError.mimeType,
+                  analysisError.filename
+                )
+              }
+              className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Retry Visual Analysis
+            </button>
+            <button
+              onClick={() =>
+                handleStartManualInspection(
+                  analysisError.photoBase64,
+                  analysisError.mimeType,
+                  analysisError.filename
+                )
+              }
+              className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-orange-500" /> Annotate Manually
+            </button>
+            <button
+              onClick={() => setAnalysisError(null)}
+              className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Upload & Photo Acquisition Mode (When No Report Active) */}
       {!report && (
         <div className="space-y-6">
@@ -374,10 +581,23 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                 {isAnalyzing
-                  ? 'Detecting activities, plant, visual hazards, and safety controls...'
-                  : 'Take a camera photo or upload an image of excavation, scaffolding, lifting, or industrial operations.'}
+                  ? analysisStep
+                  : 'Take a camera photo or upload an image of steel erection, lifting, scaffolding, excavation, or industrial operations.'}
               </p>
             </div>
+
+            {/* Dynamic 5-Dimension Scene Analysis Steps */}
+            {isAnalyzing && (
+              <div className="max-w-xs mx-auto p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-left text-[11px] space-y-1.5">
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                  Scene Understanding: People • Plant • Assets • Process • Environment
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Detecting true activity; no preloaded templates or copied findings.
+                </div>
+              </div>
+            )}
 
             {!isAnalyzing && (
               <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
@@ -404,9 +624,9 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-                Or Test with Realistic Worksite Scenarios
+                Or Test with Distinct Worksite Scenarios
               </span>
-              <span className="text-[11px] text-slate-400">Includes compliant negative test</span>
+              <span className="text-[11px] text-slate-400">Includes steel erection & safe negative test</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -448,6 +668,51 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
       {/* 2. Active Report Workspace (Tabs: Visual Review, Actions, Before/After, Final Report) */}
       {report && (
         <div className="space-y-4">
+          {/* Work Activity & Scene Identity Banner */}
+          <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between gap-3 flex-wrap">
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-800/50">
+                  {report.primaryActivity || report.activityObserved}
+                </span>
+                {report.secondaryActivities &&
+                  report.secondaryActivities.map((sec, i) => (
+                    <span
+                      key={i}
+                      className="text-[10px] font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md"
+                    >
+                      {sec}
+                    </span>
+                  ))}
+              </div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                {report.reportTitle}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className={`text-xs font-black px-2.5 py-1 rounded-xl uppercase tracking-wider border ${
+                  report.overallSiteRisk === 'Critical'
+                    ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                    : report.overallSiteRisk === 'High'
+                    ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                    : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                }`}
+              >
+                {report.overallSiteRisk} Risk
+              </span>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+                title="Inspect a different photo"
+              >
+                <RefreshCw className="w-3 h-3" /> Change Photo
+              </button>
+            </div>
+          </div>
+
           {/* Workspace Tabs Header */}
           <div className="flex items-center justify-between gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-bold">
             <button
@@ -510,6 +775,7 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
                 selectedObservationId={selectedObsId}
                 onSelectObservation={(id) => setSelectedObsId(id)}
                 onAddMarker={handleAddMarker}
+                onUpdateMarkerPosition={handleUpdateMarkerPosition}
                 isEditingMarkers={isEditingMarkers}
               />
 
@@ -537,13 +803,26 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
                 </div>
               </div>
 
+              {/* Compliant Site Banner (Negative Test Handling) */}
+              {report.observations.length === 0 && (
+                <div className="p-5 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200 font-bold text-sm">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    Controlled Worksite — Zero Critical Hazard Violations Observed
+                  </div>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">
+                    Visual examination reveals compliant protective systems and active safety measures. Existing controls have been marked with green verification badges on the photograph.
+                  </p>
+                </div>
+              )}
+
               {/* Selected Finding Details Card & 5x5 Risk Matrix */}
               {activeObs ? (
                 <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-md space-y-4">
                   {/* Title & Category Bar */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-xs font-black text-blue-600 dark:text-blue-400">
                           {activeObs.id}
                         </span>
@@ -655,7 +934,9 @@ export const HseVisionStudio: React.FC<HseVisionStudioProps> = ({
                 </div>
               ) : (
                 <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
-                  No hazards detected or all observations resolved. Safe controls confirmed.
+                  {report.observations.length === 0
+                    ? 'No unsafe conditions observed in this photograph. Tap "Place New Hazard Pin" if you wish to record a specific site observation.'
+                    : 'Select a numbered pin on the photograph to inspect its findings and corrective actions.'}
                 </div>
               )}
             </div>

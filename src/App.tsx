@@ -603,6 +603,15 @@ export default function App() {
             onBackToMain={() => setCurrentTab('home')}
             globalLanguage={globalLanguage}
             onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+            initialPhoto={
+              currentImage
+                ? {
+                    base64: currentImage.base64,
+                    mimeType: currentImage.mimeType,
+                    filename: currentImage.filename,
+                  }
+                : undefined
+            }
           />
         )}
 

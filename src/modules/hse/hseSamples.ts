@@ -18,6 +18,225 @@ export interface HseSampleScenario {
 
 export const HSE_SAMPLE_SCENARIOS: HseSampleScenario[] = [
   {
+    id: 'structural_steel_erection',
+    title: 'Structural Steel Erection & Crane Lifting',
+    industry: 'Commercial Construction & Industrial Framework',
+    workArea: 'Commercial Tower - Sector 3 Grid B4-B8',
+    activity: 'Structural steel erection, mobile crane hoisting & MEWP bolt-up',
+    emoji: '🏗️',
+    description: 'Steel framework with mobile crane hoisting 24m I-beam, articulating MEWP basket, riggers, and ground laydown dunnage',
+    getSvg: () => `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" style="background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+        <!-- Industrial Sky Backdrop -->
+        <rect x="0" y="0" width="1000" height="480" fill="#1e293b"/>
+        <rect x="0" y="480" width="1000" height="220" fill="#334155"/>
+        <line x1="0" y1="480" x2="1000" y2="480" stroke="#475569" stroke-width="3"/>
+
+        <!-- Structural Steel Framework Grid (Columns & Girders in Orange-Red Oxide Primer) -->
+        <!-- Vertical Column 1 -->
+        <rect x="120" y="100" width="22" height="380" fill="#c2410c" stroke="#9a3412" stroke-width="2"/>
+        <!-- Vertical Column 2 -->
+        <rect x="320" y="100" width="22" height="380" fill="#c2410c" stroke="#9a3412" stroke-width="2"/>
+        <!-- Vertical Column 3 -->
+        <rect x="520" y="100" width="22" height="380" fill="#c2410c" stroke="#9a3412" stroke-width="2"/>
+        <!-- Horizontal Beam Tier 1 -->
+        <rect x="110" y="220" width="440" height="18" fill="#ea580c" stroke="#c2410c" stroke-width="2"/>
+        <!-- Horizontal Beam Tier 2 -->
+        <rect x="110" y="340" width="440" height="18" fill="#ea580c" stroke="#c2410c" stroke-width="2"/>
+        <!-- Diagonal Cross Bracing -->
+        <line x1="131" y1="238" x2="331" y2="340" stroke="#9a3412" stroke-width="5" stroke-dasharray="8,4"/>
+        <line x1="331" y1="238" x2="131" y2="340" stroke="#9a3412" stroke-width="5" stroke-dasharray="8,4"/>
+
+        <!-- Mobile Telescopic Crane (Right Side) -->
+        <rect x="740" y="400" width="220" height="90" rx="12" fill="#eab308" stroke="#ca8a04" stroke-width="3"/>
+        <rect x="880" y="360" width="70" height="60" rx="8" fill="#0f172a"/> <!-- Operator Cab -->
+        <!-- Heavy Crane Wheels -->
+        <circle cx="780" cy="500" r="28" fill="#020617"/>
+        <circle cx="840" cy="500" r="28" fill="#020617"/>
+        <circle cx="900" cy="500" r="28" fill="#020617"/>
+        <!-- Outrigger Jack with Timber Spreader Pad -->
+        <rect x="710" y="470" width="30" height="40" fill="#475569"/>
+        <rect x="680" y="505" width="80" height="16" fill="#ca8a04" stroke="#0f172a" stroke-width="2"/>
+
+        <!-- Crane Telescopic Boom pointing toward structural frame -->
+        <line x1="780" y1="380" x2="350" y2="60" stroke="#eab308" stroke-width="28" stroke-linecap="round"/>
+        <line x1="780" y1="380" x2="350" y2="60" stroke="#fef08a" stroke-width="8" stroke-linecap="round"/>
+
+        <!-- Hoist Wire & Rigging Block -->
+        <line x1="350" y1="60" x2="350" y2="150" stroke="#f8fafc" stroke-width="3"/>
+        <circle cx="350" cy="155" r="9" fill="#dc2626"/>
+
+        <!-- Suspended Heavy Steel I-Beam (In Mid-Air Placement) -->
+        <rect x="180" y="165" width="340" height="26" rx="3" fill="#ea580c" stroke="#9a3412" stroke-width="3"/>
+        <line x1="180" y1="178" x2="520" y2="178" stroke="#f97316" stroke-width="4"/>
+        <!-- 2-Leg Synthetic Wire Slings -->
+        <line x1="350" y1="155" x2="230" y2="165" stroke="#94a3b8" stroke-width="4"/>
+        <line x1="350" y1="155" x2="470" y2="165" stroke="#94a3b8" stroke-width="4"/>
+
+        <!-- Tag Line extending from suspended beam to ground rigger -->
+        <line x1="510" y1="185" x2="620" y2="440" stroke="#38bdf8" stroke-width="3" stroke-dasharray="6,4"/>
+
+        <!-- Mobile Elevating Work Platform (MEWP / Boom Lift) -->
+        <rect x="580" y="440" width="80" height="45" rx="6" fill="#2563eb"/>
+        <circle cx="600" cy="495" r="14" fill="#0f172a"/>
+        <circle cx="640" cy="495" r="14" fill="#0f172a"/>
+        <!-- Articulated Boom Knuckle & Arm reaching up to Level 2 connection -->
+        <line x1="620" y1="440" x2="570" y2="330" stroke="#3b82f6" stroke-width="12"/>
+        <line x1="570" y1="330" x2="480" y2="240" stroke="#60a5fa" stroke-width="10"/>
+        <!-- MEWP Platform Basket -->
+        <rect x="440" y="220" width="55" height="40" rx="3" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+        <line x1="440" y1="235" x2="495" y2="235" stroke="#60a5fa" stroke-width="2"/>
+        <!-- Worker inside MEWP (Ironworker with harness tethered) -->
+        <circle cx="465" cy="210" r="7" fill="#fef08a"/>
+        <rect x="458" y="217" width="14" height="22" rx="3" fill="#f97316"/>
+        <line x1="465" y1="225" x2="485" y2="245" stroke="#22c55e" stroke-width="2"/> <!-- Lanyard attached to anchor -->
+
+        <!-- Ground Level Worker / Rigger walking directly under suspended load envelope (LINE OF FIRE) -->
+        <circle cx="310" cy="425" r="8" fill="#fef08a"/>
+        <rect x="303" y="433" width="14" height="25" rx="3" fill="#f97316"/>
+        <line x1="307" y1="458" x2="303" y2="488" stroke="#0f172a" stroke-width="4"/>
+        <line x1="313" y1="458" x2="317" y2="488" stroke="#0f172a" stroke-width="4"/>
+
+        <!-- Ground Rigger safely holding Tag Line -->
+        <circle cx="630" cy="430" r="8" fill="#fef08a"/>
+        <rect x="623" y="438" width="14" height="25" rx="3" fill="#3b82f6"/>
+        <line x1="627" y1="463" x2="625" y2="488" stroke="#0f172a" stroke-width="4"/>
+        <line x1="633" y1="463" x2="635" y2="488" stroke="#0f172a" stroke-width="4"/>
+
+        <!-- Ground Laydown Steel Storage without proper timber blocking (Dunnage / Trip Hazard) -->
+        <rect x="50" y="470" width="120" height="14" fill="#9a3412" stroke="#7c2d12" stroke-width="2"/>
+        <rect x="60" y="456" width="100" height="14" fill="#9a3412" stroke="#7c2d12" stroke-width="2"/>
+        <text x="110" y="445" fill="#f8fafc" font-size="10" font-weight="bold" text-anchor="middle">Steel Laydown Stack</text>
+      </svg>
+    `,
+    defaultObservations: [
+      {
+        id: 'HAZ-01',
+        markerNumber: 1,
+        xPercent: 31,
+        yPercent: 62,
+        hazardCategory: 'Lifting & Rigging',
+        title: 'Personnel Positioned Directly Beneath Suspended Steel Beam ("Line of Fire")',
+        observedCondition: 'Operative traversing directly beneath 340kg hoisted steel beam within drop shadow radius without barricaded exclusion zone.',
+        potentialConsequences: 'Catastrophic crush injury or fatality in the event of rigging failure, slippage, or crane hoist brake failure.',
+        exposedParties: 'Ground operative traversing erection grid line.',
+        evidenceClassification: 'Visible Finding',
+        existingControls: 'Operative wearing hard hat and hi-vis vest.',
+        missingOrQuestionableControls: 'Physical exclusion zone barricade and dedicated lifting banksman enforcing line-of-fire clearance.',
+        likelihood: 4,
+        severity: 5,
+        riskScore: 20,
+        riskRating: 'Critical',
+        immediateAction: 'Halt crane movement immediately; direct operative out of the suspended load envelope; establish rigid exclusion perimeter.',
+        engineeringControls: 'Demarcate mobile crane lifting radius with physical barriers; configure slew limiters.',
+        administrativeControls: 'Review lifting plan exclusion zone with all erection crews; enforce ASME B30.5 and OSHA 1926.753.',
+        ppeRequired: 'EN 397 safety helmet, high-visibility vest, steel-toe boots.',
+        residualRisk: 'Low',
+        applicableStandards: getApplicableStandards('Lifting & Rigging'),
+        fieldVerificationQuestions: [
+          'Is an approved Lift Plan and Appointed Person calculation available for this specific beam weight and radius?',
+          'Has pre-lift toolbox talk established the designated exclusion boundary?',
+        ],
+        actionAssignee: 'Lifting Supervisor (P. Gallagher)',
+        actionTargetDate: 'Immediate',
+        actionStatus: 'Open',
+      },
+      {
+        id: 'HAZ-02',
+        markerNumber: 2,
+        xPercent: 47,
+        yPercent: 34,
+        hazardCategory: 'Working at Height',
+        title: 'MEWP Basket Proximity to Swinging Suspended Member (Pinch & Entrapment Exposure)',
+        observedCondition: 'Boom lift basket positioned in tight interface adjacent to moving steel beam and fixed column connection point.',
+        potentialConsequences: 'Crush or overhead entrapment of ironworker between basket guardrail and structural members.',
+        exposedParties: 'Ironworker inside MEWP basket.',
+        evidenceClassification: 'Potential Concern',
+        existingControls: 'Worker in basket appears tethered to anchor point.',
+        missingOrQuestionableControls: 'Overhead anti-entrapment secondary guarding bar or proximity sensor on MEWP.',
+        likelihood: 3,
+        severity: 4,
+        riskScore: 12,
+        riskRating: 'High',
+        immediateAction: 'Position MEWP basket on outer clear side of connection; do not reach across suspended beam path.',
+        engineeringControls: 'Deploy MEWPs fitted with overhead secondary guarding frames (anti-entrapment bars).',
+        administrativeControls: 'Ensure MEWP operator has valid IPAF 3b certification and ground rescue plan is rehearsed.',
+        ppeRequired: 'Full body harness with short restraint lanyard clipped to approved basket anchor point.',
+        residualRisk: 'Low',
+        applicableStandards: getApplicableStandards('Working at Height'),
+        fieldVerificationQuestions: [
+          'Is an emergency ground lowering rescue procedure documented and tested for this boom lift location?',
+          'Has the MEWP received its statutory 6-month LOLER thorough examination?',
+        ],
+        actionAssignee: 'Erection Foreman (C. Vance)',
+        actionTargetDate: 'Today by 15:00',
+        actionStatus: 'Open',
+      },
+      {
+        id: 'HAZ-03',
+        markerNumber: 3,
+        xPercent: 11,
+        yPercent: 67,
+        hazardCategory: 'Housekeeping & Slips/Trips',
+        title: 'Ground Steel Member Laydown Storage Lacking Adequate Dunnage and Chocking',
+        observedCondition: 'Structural steel components stored directly at ground edge with unorganized timber blocking, creating rolling and trip hazards.',
+        potentialConsequences: 'Steel roll-off injury, foot crush, or tripping of riggers handling tag lines.',
+        exposedParties: 'Riggers, crane signalers, and ground personnel.',
+        evidenceClassification: 'Visible Finding',
+        existingControls: 'Timber blocks present under parts of members.',
+        missingOrQuestionableControls: 'Uniform timber dunnage bearers and wedges to prevent rolling.',
+        likelihood: 3,
+        severity: 3,
+        riskScore: 9,
+        riskRating: 'Medium',
+        immediateAction: 'Install timber wedges to chock steel sections; align beams on level hardwood dunnage.',
+        engineeringControls: 'Designate leveled, compacted laydown racks with marked pedestrian walkways.',
+        administrativeControls: 'Brief delivery drivers and logistics crew on safe steel stacking limits per OSHA 1926.250.',
+        ppeRequired: 'Metatarsal safety footwear and cut-resistant gloves.',
+        residualRisk: 'Low',
+        applicableStandards: getApplicableStandards('Housekeeping & Slips/Trips'),
+        fieldVerificationQuestions: [
+          'Is ground compaction certified for temporary laydown of heavy structural members?',
+        ],
+        actionAssignee: 'Site Logistics Lead (M. Al-Zahrani)',
+        actionTargetDate: 'Next Shift',
+        actionStatus: 'Open',
+      },
+    ],
+    defaultPositiveObservations: [
+      {
+        id: 'POS-01',
+        title: 'Synthetic Tag Line Actively Used for Load Guidance',
+        description: 'Ground rigger is utilizing a continuous tag line to guide beam rotation without placing hands on suspended steel.',
+        category: 'Rigging Best Practice',
+        xPercent: 63,
+        yPercent: 62,
+      },
+      {
+        id: 'POS-02',
+        title: 'Crane Outrigger Deployed on Hardwood Spreader Mat',
+        description: 'Telescopic crane jack is positioned on substantial load-distributing spreader pad over compacted ground.',
+        category: 'Crane Stability',
+        xPercent: 71,
+        yPercent: 72,
+      },
+      {
+        id: 'POS-03',
+        title: 'Ironworker Inside MEWP Wearing Fall Arrest Harness',
+        description: 'Elevated worker in MEWP platform is equipped with harness visibly attached to certified basket anchor.',
+        category: 'Working at Height',
+        xPercent: 47,
+        yPercent: 31,
+      },
+    ],
+    defaultVerificationItems: [
+      'Confirm written Steel Erection Site-Specific Safety Plan (OSHA 1926.752) signed off by structural engineer.',
+      'Verify 2-bolt minimum connection rule is strictly observed before crane unhooks from structural members.',
+      'Confirm daily crane pre-operational inspection checklist completed and signed by crane operator.',
+    ],
+    defaultOverallRisk: 'High',
+  },
+  {
     id: 'excavation_dewatering',
     title: 'Excavation & Dewatering Pit',
     industry: 'Infrastructure & Civil Construction',

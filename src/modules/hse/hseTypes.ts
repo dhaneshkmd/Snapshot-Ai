@@ -1,7 +1,8 @@
 export type EvidenceClassification =
   | 'Visible Finding'
   | 'Potential Concern'
-  | 'Not Verifiable From Photo';
+  | 'Not Verifiable From Photo'
+  | 'Field Verification Required';
 
 export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 
@@ -36,11 +37,19 @@ export interface StandardReference {
   summary: string;
 }
 
+export interface HazardBoundingBox {
+  x: number; // 0.0 - 1.0 (relative to image)
+  y: number; // 0.0 - 1.0 (relative to image)
+  width: number; // 0.0 - 1.0
+  height: number; // 0.0 - 1.0
+}
+
 export interface HazardObservation {
   id: string; // HAZ-01
   markerNumber: number; // 1, 2, 3
   xPercent: number; // 0 - 100% position on photograph
   yPercent: number; // 0 - 100% position on photograph
+  boundingBox?: HazardBoundingBox;
   box?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] 0-1000
   hazardCategory: HazardCategory;
   title: string;
@@ -62,6 +71,7 @@ export interface HazardObservation {
   applicableStandards: StandardReference[];
   fieldVerificationQuestions: string[];
   photoId?: string;
+  confidence?: number;
   // Corrective action tracking
   actionAssignee?: string;
   actionTargetDate?: string;
@@ -91,12 +101,15 @@ export interface InspectedPhoto {
 
 export interface HseInspectionReport {
   id: string; // HSE-2026-XXXX
+  imageHash?: string;
   reportTitle: string;
   inspectionDate: string;
   inspectionTime: string;
   siteName: string;
   projectNumber: string;
   workArea: string;
+  primaryActivity?: string;
+  secondaryActivities?: string[];
   activityObserved: string;
   inspectorName: string;
   inspectorDesignation: string;

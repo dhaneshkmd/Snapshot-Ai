@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { HazardObservation, PositiveObservation } from '../../modules/hse/hseTypes';
-import { ZoomIn, ZoomOut, RotateCcw, Eye, Plus, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Eye, Plus, ShieldCheck, Move, AlertTriangle } from 'lucide-react';
 
 interface PhotoAnnotationCanvasProps {
   imageSrc: string;
@@ -23,25 +23,75 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
   onUpdateMarkerPosition,
   isEditingMarkers = false,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const imageFrameRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [showLabels, setShowLabels] = useState(true);
   const [showPositives, setShowPositives] = useState(true);
-  const [isDraggingMarkerId, setIsDraggingMarkerId] = useState<string | null>(null);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  const handleZoomIn = () => setZoom((z) => Math.min(2.5, z + 0.25));
-  const handleZoomOut = () => setZoom((z) => Math.max(1, z - 0.25));
+  const handleZoomIn = () => setZoom((z) => Math.min(2.5, +(z + 0.25).toFixed(2)));
+  const handleZoomOut = () => setZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)));
   const handleResetZoom = () => setZoom(1);
 
+  // Direct click on photo to add new pin (only when isEditingMarkers is active)
   const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isEditingMarkers || !onAddMarker) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!isEditingMarkers || !onAddMarker || draggingId) return;
+    const rect = imageFrameRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    onAddMarker(Math.round(x), Math.round(y));
+    const x = Math.max(2, Math.min(98, Math.round(((e.clientX - rect.left) / rect.width) * 100)));
+    const y = Math.max(2, Math.min(98, Math.round(((e.clientY - rect.top) / rect.height) * 100)));
+    onAddMarker(x, y);
   };
+
+  // Dragging logic to reposition pins accurately
+  const handleStartDrag = (e: React.MouseEvent | React.TouchEvent, id: string) => {
+    e.stopPropagation();
+    onSelectObservation(id);
+    setDraggingId(id);
+  };
+
+  const handlePointerMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!draggingId || !onUpdateMarkerPosition || !imageFrameRef.current) return;
+      const rect = imageFrameRef.current.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+
+      const x = Math.max(2, Math.min(98, Math.round(((clientX - rect.left) / rect.width) * 100)));
+      const y = Math.max(2, Math.min(98, Math.round(((clientY - rect.top) / rect.height) * 100)));
+      onUpdateMarkerPosition(draggingId, x, y);
+    },
+    [draggingId, onUpdateMarkerPosition]
+  );
+
+  useEffect(() => {
+    if (!draggingId) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      handlePointerMove(e.clientX, e.clientY);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches[0]) {
+        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+    const onEndDrag = () => {
+      setDraggingId(null);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onEndDrag);
+    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchend', onEndDrag);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onEndDrag);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onEndDrag);
+    };
+  }, [draggingId, handlePointerMove]);
 
   const getRiskColor = (risk: string) => {
     switch (risk) {
@@ -59,8 +109,8 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
   return (
     <div className="space-y-2 select-none">
       {/* Top Toolbar Controls */}
-      <div className="flex items-center justify-between px-1 text-xs">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between px-1 text-xs flex-wrap gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-semibold text-slate-700 dark:text-slate-300">
             {observations.length} Hazard Marker{observations.length !== 1 ? 's' : ''}
           </span>
@@ -72,7 +122,7 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             type="button"
             onClick={() => setShowLabels(!showLabels)}
@@ -97,7 +147,20 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
             Controls {showPositives ? 'ON' : 'OFF'}
           </button>
 
-          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+          <button
+            type="button"
+            onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer border ${
+              showBoundingBoxes
+                ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+            }`}
+            title="Toggle Bounding Boxes"
+          >
+            Boxes {showBoundingBoxes ? 'ON' : 'OFF'}
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block" />
 
           <button
             type="button"
@@ -130,28 +193,54 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
         </div>
       </div>
 
-      {/* Interactive Photo Canvas */}
-      <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/90 dark:border-slate-800 shadow-md">
+      {/* Interactive Photo Canvas Viewport */}
+      <div className="relative w-full rounded-2xl overflow-auto bg-slate-950/90 dark:bg-black border border-slate-200/90 dark:border-slate-800 shadow-md flex justify-center items-center min-h-[320px] p-2">
+        {/* Tightly shrink-wrapped image frame container (ZERO letterbox margin offset) */}
         <div
-          ref={containerRef}
+          ref={imageFrameRef}
           onClick={handleImageClick}
-          className={`relative w-full transition-transform duration-200 origin-center ${
+          className={`relative inline-block transition-transform duration-200 origin-center ${
             isEditingMarkers ? 'cursor-crosshair' : 'cursor-default'
           }`}
           style={{ transform: `scale(${zoom})` }}
         >
-          {/* Original Photograph (Preserved Pristine) */}
+          {/* Pristine Original Photograph */}
           <img
             src={imageSrc}
             alt="Worksite Inspection"
-            className="w-full h-auto max-h-[500px] object-contain block mx-auto pointer-events-none"
+            className="block max-h-[520px] max-w-full w-auto h-auto rounded-xl shadow-lg pointer-events-none select-none object-contain"
           />
+
+          {/* Optional Visual Bounding Boxes for Detected Hazards */}
+          {showBoundingBoxes &&
+            observations.map((obs) => {
+              if (!obs.boundingBox) return null;
+              const isSelected = obs.id === selectedObservationId;
+              const { x, y, width, height } = obs.boundingBox;
+              return (
+                <div
+                  key={`box_${obs.id}`}
+                  style={{
+                    left: `${Math.max(0, Math.min(100, x * 100))}%`,
+                    top: `${Math.max(0, Math.min(100, y * 100))}%`,
+                    width: `${Math.max(4, Math.min(100, width * 100))}%`,
+                    height: `${Math.max(4, Math.min(100, height * 100))}%`,
+                  }}
+                  className={`absolute pointer-events-none rounded border-2 transition-all ${
+                    isSelected
+                      ? 'border-blue-400 bg-blue-500/15 ring-2 ring-blue-400/50 z-20'
+                      : 'border-orange-400/70 bg-orange-500/10 z-10'
+                  }`}
+                />
+              );
+            })}
 
           {/* Interactive Numbered Hazard Markers (01, 02, 03...) */}
           {observations.map((obs, idx) => {
             const isSelected = obs.id === selectedObservationId;
             const markerNum = String(obs.markerNumber || idx + 1).padStart(2, '0');
             const colorClass = getRiskColor(obs.riskRating);
+            const isBeingDragged = draggingId === obs.id;
 
             return (
               <div
@@ -165,23 +254,28 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
                   e.stopPropagation();
                   onSelectObservation(obs.id);
                 }}
-                className="absolute z-20 group cursor-pointer"
+                className={`absolute z-30 group cursor-pointer ${
+                  isBeingDragged ? 'z-50 scale-125' : ''
+                }`}
               >
-                {/* Marker Pin Button */}
+                {/* Marker Pin Button with Drag Grip Handle */}
                 <div
-                  className={`relative flex items-center justify-center transition-all ${
-                    isSelected ? 'scale-125 z-30' : 'hover:scale-115'
+                  onMouseDown={(e) => handleStartDrag(e, obs.id)}
+                  onTouchStart={(e) => handleStartDrag(e, obs.id)}
+                  className={`relative flex items-center justify-center transition-transform ${
+                    isSelected ? 'scale-125 z-40' : 'hover:scale-115'
                   }`}
+                  title={`${markerNum} — ${obs.title} (Drag to adjust position)`}
                 >
                   {/* Pulsing ring for selected marker */}
                   {isSelected && (
-                    <span className="absolute -inset-2 rounded-full animate-ping opacity-75 bg-blue-500" />
+                    <span className="absolute -inset-2 rounded-full animate-ping opacity-75 bg-blue-500 pointer-events-none" />
                   )}
 
                   {/* Marker Badge */}
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs border-2 shadow-lg transition-transform ${colorClass} ${
-                      isSelected ? 'ring-4 ring-blue-500/50' : ''
+                    className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs border-2 shadow-xl transition-all ${colorClass} ${
+                      isSelected ? 'ring-4 ring-blue-500/60 ring-offset-1 ring-offset-slate-900' : ''
                     }`}
                   >
                     {markerNum}
@@ -191,9 +285,9 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
                 {/* Marker Hover or Persistent Label */}
                 {showLabels && (
                   <div
-                    className={`absolute left-1/2 -translate-x-1/2 top-full mt-1.5 whitespace-nowrap px-2 py-0.5 rounded-md text-[10px] font-bold shadow-md pointer-events-none transition-opacity ${
+                    className={`absolute left-1/2 -translate-x-1/2 top-full mt-1.5 whitespace-nowrap px-2 py-0.5 rounded-md text-[10px] font-bold shadow-lg pointer-events-none transition-all ${
                       isSelected
-                        ? 'bg-blue-600 text-white z-40 opacity-100 ring-1 ring-white/50'
+                        ? 'bg-blue-600 text-white z-50 opacity-100 ring-1 ring-white/50'
                         : 'bg-black/85 text-slate-100 opacity-90 group-hover:opacity-100'
                     }`}
                   >
@@ -217,30 +311,35 @@ export const PhotoAnnotationCanvas: React.FC<PhotoAnnotationCanvasProps> = ({
                     top: `${y}%`,
                     transform: 'translate(-50%, -50%)',
                   }}
-                  className="absolute z-10 group cursor-default"
+                  className="absolute z-20 group cursor-default"
                 >
                   <div className="w-6 h-6 rounded-full bg-emerald-600 border-2 border-white text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                     <ShieldCheck className="w-3.5 h-3.5" />
                   </div>
                   {showLabels && (
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap px-1.5 py-0.5 rounded bg-emerald-950/90 text-emerald-200 text-[9px] font-semibold opacity-85 group-hover:opacity-100">
-                      ✓ {pos.title.slice(0, 22)}
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap px-1.5 py-0.5 rounded bg-emerald-950/95 text-emerald-200 text-[9px] font-semibold opacity-85 group-hover:opacity-100 shadow-md">
+                      ✓ {pos.title.length > 24 ? `${pos.title.slice(0, 24)}...` : pos.title}
                     </div>
                   )}
                 </div>
               );
             })}
         </div>
+      </div>
 
-        {/* Tip helper banner */}
-        <div className="absolute bottom-2 inset-x-2 flex items-center justify-between px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md text-[11px] text-white/90">
-          <span>Tap any numbered pin to jump to its findings</span>
-          {isEditingMarkers && (
-            <span className="text-amber-300 font-semibold flex items-center gap-1">
-              <Plus className="w-3 h-3" /> Tap image to place marker
-            </span>
-          )}
-        </div>
+      {/* Tip helper banner */}
+      <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+        <span className="flex items-center gap-1.5">
+          <Move className="w-3 h-3 text-slate-400" />
+          Click or drag any pin to inspect or adjust position
+        </span>
+        {isEditingMarkers ? (
+          <span className="text-orange-600 dark:text-orange-400 font-bold flex items-center gap-1">
+            <Plus className="w-3 h-3" /> Tap photo to place new hazard pin
+          </span>
+        ) : (
+          <span className="text-slate-400 text-[10px]">Photo-accurate coordinates</span>
+        )}
       </div>
     </div>
   );

@@ -236,20 +236,40 @@ app.post('/api/hse-analyze', async (req: Request, res: Response) => {
     const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
 
     const systemInstruction = `You are an elite, certified HSE (Health, Safety, and Environment) Auditor and Chartered Safety Inspector.
-You analyze worksite photographs across construction, civil engineering, manufacturing, oil & gas, warehouses, energy, and transportation.
-Perform a rigorous, objective HSE inspection based strictly on visible photo evidence:
-1. Recognize the worksite activity, plant, tools, and equipment.
-2. Identify visible hazards, unsafe conditions, and unsafe acts.
-3. Identify existing positive safety controls (do NOT assume every photo has violations; if controls are adequate, note them as positive observations).
-4. For each potential hazard, specify accurate xPercent (0-100) and yPercent (0-100) coordinates to place visual pin markers on the photograph.
-5. Classify findings into:
-   - "Visible Finding" (directly supported by photograph)
-   - "Potential Concern" (plausible hazard requiring field verification)
-   - "Not Verifiable From Photo" (requires documentation, measurements, or interviews)
-6. Assign realistic 1-5 Likelihood (1=Rare to 5=Almost Certain) and 1-5 Severity (1=Insignificant to 5=Catastrophic).
-7. Propose Hierarchy of Controls: Immediate Action, Engineering Controls, Administrative Controls, and PPE.
-8. Cite real, verified regulatory standards (OSHA 1926/1910, ISO 45001, UK HSE, ILO C167). Never invent clause numbers.
-9. Outline positive controls and matters requiring on-site field verification.`;
+You analyze worksite photographs across construction, civil engineering, manufacturing, oil & gas, warehouses, energy, transportation, and industrial operations.
+
+Perform an objective, photo-specific HSE inspection strictly following these non-negotiable rules:
+
+1. DYNAMIC WORK ACTIVITY RECOGNITION (IMAGE FIRST):
+   - First examine the visual scene to identify the actual primary activity (e.g., "Structural Steel Erection", "Excavation & Trenching", "Scaffolding & Façade Access", "Crane Lifting Operations", "MEWP Operations", "Working at Height", "Concrete Works", "Confined Space Entry", "Electrical Installation", "Welding & Hot Work", "Warehouse Operations", etc.).
+   - Identify any secondary interacting activities (e.g., ["Mobile Crane Hoisting", "MEWP Positioning", "Rigging", "Ground Laydown Handling"]).
+   - Derive the report title dynamically from the actual activity (e.g., "Structural Steel Erection & Crane Hoisting HSE Safety Audit"). NEVER use a static or mismatched template title.
+
+2. STRICT RELEVANCE & NO FABRICATED OR BORROWED HAZARDS:
+   - Under NO circumstances should you output excavation, trenching, or dewatering hazards unless excavation or trenching is genuinely, visibly present in the image.
+   - If the photograph is Structural Steel Erection, evaluate only hazards pertinent to steel erection: suspended load exposure ("line of fire"), rigging/slings, crane radius, MEWP entrapment/pinch points, fall protection tie-off, member stability, ground dunnage/chocking.
+   - Do NOT force a fixed number of hazards or positive controls. A photograph may have 0 hazards, 1 hazard, or several. If the site is well-controlled with full safety measures, return an empty array "observations": [] and record positive observations.
+
+3. 5-DIMENSION SCENE UNDERSTANDING:
+   - People: locations relative to suspended loads, edges, mobile plant, crush points.
+   - Plant & Equipment: machinery actually visible (cranes, MEWPs, excavators, forklifts, etc.).
+   - Assets: structural steel components, temporary works, shoring, stored materials.
+   - Process: what operation is actively taking place.
+   - Environment: ground conditions, weather, access paths, housekeeping, electrical clearance.
+
+4. THREE EVIDENCE CLASSES:
+   - "Visible Finding": directly evidenced in the photograph.
+   - "Potential Concern": plausible hazard suggested by photo requiring physical verification.
+   - "Field Verification Required": matters that cannot be confirmed from photo alone (e.g. lift plans, ground bearing capacity, certification).
+
+5. ACCURATE SPATIAL COORDINATES & BOUNDING BOXES:
+   - For every finding, provide accurate xPercent (2-98) and yPercent (2-98) indicating the visual pin location on the actual object/hazard in the photograph.
+   - Provide a normalized boundingBox with x (0-1), y (0-1), width (0-1), and height (0-1).
+   - Coordinates MUST be on the visible object, NEVER off-image or in border margins.
+
+6. HIERARCHY OF CONTROLS:
+   - Provide immediate action, engineering controls, administrative controls, and PPE.
+   - Cite verified regulatory clauses (OSHA 1926/1910, ISO 45001, UK HSE, ILO C167). Never invent clause numbers.`;
 
     const response = await generateContentWithFallback({
       contents: [
@@ -263,7 +283,7 @@ Perform a rigorous, objective HSE inspection based strictly on visible photo evi
               },
             },
             {
-              text: `Conduct a professional HSE workplace safety inspection. Jurisdiction preference: ${jurisdiction}.`,
+              text: `Analyze this worksite photograph. Identify the specific work activity, plant, and people. Evaluate hazards and safety controls based strictly and exclusively on the visible evidence in this photograph. Preferred jurisdiction: ${jurisdiction}.`,
             },
           ],
         },
@@ -279,6 +299,11 @@ Perform a rigorous, objective HSE inspection based strictly on visible photo evi
             siteName: { type: Type.STRING },
             projectNumber: { type: Type.STRING },
             workArea: { type: Type.STRING },
+            primaryActivity: { type: Type.STRING },
+            secondaryActivities: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
             activityObserved: { type: Type.STRING },
             inspectorName: { type: Type.STRING },
             inspectorDesignation: { type: Type.STRING },
@@ -293,6 +318,15 @@ Perform a rigorous, objective HSE inspection based strictly on visible photo evi
                   markerNumber: { type: Type.NUMBER },
                   xPercent: { type: Type.NUMBER },
                   yPercent: { type: Type.NUMBER },
+                  boundingBox: {
+                    type: Type.OBJECT,
+                    properties: {
+                      x: { type: Type.NUMBER },
+                      y: { type: Type.NUMBER },
+                      width: { type: Type.NUMBER },
+                      height: { type: Type.NUMBER },
+                    },
+                  },
                   hazardCategory: { type: Type.STRING },
                   title: { type: Type.STRING },
                   observedCondition: { type: Type.STRING },
@@ -367,23 +401,27 @@ Perform a rigorous, objective HSE inspection based strictly on visible photo evi
     const text = response.text || '{}';
     const parsed = JSON.parse(text);
 
-    // Ensure riskScore and riskRating are consistently calculated
+    // Ensure riskScore, riskRating, and bounded coordinates
     if (parsed.observations && Array.isArray(parsed.observations)) {
       parsed.observations = parsed.observations.map((obs: any, idx: number) => {
         const l = Math.max(1, Math.min(5, Math.round(Number(obs.likelihood) || 3)));
         const s = Math.max(1, Math.min(5, Math.round(Number(obs.severity) || 3)));
         const score = l * s;
         const rating = score >= 15 ? 'Critical' : score >= 10 ? 'High' : score >= 5 ? 'Medium' : 'Low';
+        const xClamped = Math.max(2, Math.min(98, Math.round(Number(obs.xPercent) || 50)));
+        const yClamped = Math.max(2, Math.min(98, Math.round(Number(obs.yPercent) || 50)));
         return {
           ...obs,
           markerNumber: obs.markerNumber || idx + 1,
+          xPercent: xClamped,
+          yPercent: yClamped,
           likelihood: l,
           severity: s,
           riskScore: score,
           riskRating: rating,
           actionStatus: obs.actionStatus || 'Open',
           residualRisk: obs.residualRisk || 'Low',
-          applicableStandards: [],
+          applicableStandards: obs.applicableStandards || [],
         };
       });
     }
