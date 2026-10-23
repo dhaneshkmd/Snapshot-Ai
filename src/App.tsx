@@ -25,6 +25,7 @@ import {
 } from './utils/storage';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 import { CommentReplyStudio } from './components/CommentReplyStudio';
+import { SmartPdfStudio } from './components/pdfStudio/SmartPdfStudio';
 import { LanguageSelectorModal } from './components/LanguageSelectorModal';
 import { DiagnosticsModal } from './components/DiagnosticsModal';
 import {
@@ -62,8 +63,10 @@ function formatErrorMessage(errData: any, fallback: string): string {
 }
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings' | 'pdf'>('home');
   const [stage, setStage] = useState<'upload' | 'analyzing' | 'recommend' | 'result' | 'comment_reply'>('upload');
+  const [pdfInitialText, setPdfInitialText] = useState<string>('');
+  const [pdfInitialImage, setPdfInitialImage] = useState<string | undefined>(undefined);
   
   const [currentImage, setCurrentImage] = useState<{
     base64: string;
@@ -600,12 +603,32 @@ export default function App() {
           />
         )}
 
+        {/* Tab: Smart PDF Studio */}
+        {currentTab === 'pdf' && (
+          <SmartPdfStudio
+            onBackToMain={() => setCurrentTab('home')}
+            globalLanguage={globalLanguage}
+            onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+            initialText={pdfInitialText}
+            initialImageBase64={pdfInitialImage}
+            onSaveToHistory={(item) => {
+              saveHistoryItem(item);
+              setHistoryItems(getStoredHistory());
+            }}
+          />
+        )}
+
         {/* Tab: Home Flow */}
         {currentTab === 'home' && (
           <>
             {stage === 'upload' && (
               <HomeScreen
                 onImageSelected={handleImageSelected}
+                onOpenPdfStudio={() => {
+                  setPdfInitialText('');
+                  setPdfInitialImage(undefined);
+                  setCurrentTab('pdf');
+                }}
                 isProcessing={false}
               />
             )}
@@ -621,6 +644,12 @@ export default function App() {
                 onSelectAction={handleSelectAction}
                 onOpenMoreActions={() => setIsMoreActionsOpen(true)}
                 onOpenReplyStudio={() => setStage('comment_reply')}
+                onOpenPdfStudio={() => {
+                  const content = parsedScreenshot?.cleanMarkdown || parsedScreenshot?.rawText || analysisResult?.summary || '';
+                  setPdfInitialText(content);
+                  setPdfInitialImage(currentImage.base64);
+                  setCurrentTab('pdf');
+                }}
                 onRetake={handleResetToHome}
                 isExecutingAction={isExecutingAction}
               />

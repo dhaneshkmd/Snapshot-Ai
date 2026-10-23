@@ -7,11 +7,13 @@ import { SnapActionLogo } from './SnapActionLogo';
 interface HomeScreenProps {
   onImageSelected: (imageBase64: string, mimeType: string, filename?: string) => void;
   isProcessing?: boolean;
+  onOpenPdfStudio?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onImageSelected,
   isProcessing,
+  onOpenPdfStudio,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -296,7 +298,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         )}
       </div>
 
-
+      {/* Smart PDF Studio Fast Launch Card */}
+      {onOpenPdfStudio && (
+        <div className="w-full mt-6">
+          <button
+            onClick={onOpenPdfStudio}
+            className="w-full text-left p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-lg shadow-blue-500/20 active:scale-[0.99] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-100">
+                  <span>📄</span> Smart PDF Studio
+                </div>
+                <div className="text-base sm:text-lg font-black tracking-tight">
+                  Turn Messy Notes Into Professional Documents
+                </div>
+                <div className="text-xs text-blue-100/90 line-clamp-1">
+                  Random Notes → Understand → Organize → Professionally Write → PDF & DOCX
+                </div>
+              </div>
+              <div className="w-9 h-9 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">
+                <span className="text-base font-bold">→</span>
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Examples section: Try a screenshot */}
       <div className="w-full mt-6 space-y-3">

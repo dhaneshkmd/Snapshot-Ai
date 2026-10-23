@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -37,6 +37,20 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
     }
   }
   return { mimeType: 'image/png', data: dataUrlOrBase64 };
+}
+
+function parseJsonSafe(raw: string): any {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      return {};
+    }
+  }
 }
 
 // =========================================================================
@@ -178,6 +192,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
       '/api/analyze-screenshot',
       '/api/execute-action',
       '/api/local-ocr',
+      '/api/generate-smart-document',
     ],
     timestamp: new Date().toISOString(),
   });
@@ -212,9 +227,7 @@ app.post('/api/health/test-vision', async (req: Request, res: Response) => {
           ],
         },
       ],
-      config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      },
+      config: {},
     });
 
     return res.json({
@@ -297,7 +310,6 @@ app.post('/api/analyze-screenshot', async (req: Request, res: Response) => {
       config: {
         systemInstruction,
         responseMimeType: 'application/json',
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
@@ -461,14 +473,219 @@ Output clean Markdown directly with no unnecessary filler preamble.`;
       contents: [{ role: 'user', parts }],
       config: {
         systemInstruction:
-          'You are SnapAction AI. You produce ready-to-use, pristine action items from screenshots. Write clean, natural, formatted text. Do not wrap everything in unnecessary introductory chatter.',
-        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          'You are SnapAction AI. You produce ready-to-use, practical action items from screenshots. Write clean, natural, formatted text. Do not wrap everything in unnecessary introductory chatter.',
       },
     });
 
     const resultText = response.text || '';
     return res.json({ result: resultText, modelUsed, requestId: reqId });
   } catch (error: any) {
+    const { category, message, httpStatus } = AIProviderService.categorizeError(error);
+    return res.status(httpStatus).json({
+      error: message,
+      errorCategory: category,
+      requestId: reqId,
+      retryable: category === 'SERVICE_OVERLOAD' || category === 'RATE_LIMITED',
+    });
+  }
+});
+
+// Smart PDF Studio: Turn Messy Notes Into Professional Documents
+app.post('/api/generate-smart-document', async (req: Request, res: Response) => {
+  const reqId = `pdf_${Date.now()}`;
+  try {
+    const {
+      notesText = '',
+      imageBase64,
+      mimeType = 'image/png',
+      documentType,
+      language = 'English',
+      writingStyle = 'professional',
+      quickMode = 'professional_rewrite',
+      lengthMode = 'standard',
+      metadata = {},
+    } = req.body;
+
+    if (!notesText.trim() && !imageBase64) {
+      return res.status(400).json({ error: 'Please provide notes, text, or an image to transform.', requestId: reqId });
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({
+        error: 'GEMINI_API_KEY is not configured on the server.',
+        errorCategory: 'AUTHENTICATION_ERROR',
+        requestId: reqId,
+      });
+    }
+
+    const systemInstruction = `You are the lead editorial director and document architect for SnapAction Smart PDF Studio.
+Tagline: "Turn Messy Notes Into Professional Documents."
+
+Your core task is:
+Random Notes → Understand → Organize → Professionally Write → Structure Sections & Tables → Output Structured Document.
+
+NON-NEGOTIABLE CORE PRINCIPLES:
+1. ZERO FABRICATION (STRICTEST INTEGRITY):
+   - Never invent dates, attendee names, commitments, financial figures, statistics, or decisions.
+   - If a date, name, or parameter is absent, use "[Not specified]" or leave the field clearly marked for user input.
+   - Distinctly separate factual information provided in the raw notes from your synthesized explanations or suggested next steps.
+
+2. SMART DOCUMENT TYPE DETECTION:
+   - If documentType is provided (e.g. "Meeting Minutes", "Project Progress Report", "Study Notes", "Action Plan", "Expense Summary", "Business Proposal", etc.), format specifically for that domain.
+   - If documentType is empty or "auto", intelligently deduce the optimal document type from the 54 professional templates (Meeting Minutes, Executive Summary, Project Status Update, Action Plan, Study Guide, Travel Itinerary, Expense Summary, etc.).
+   - If ambiguous, default to "General Professional Document".
+
+3. REWRITING & RESTRUCTURING:
+   - Upgrade grammar, sentence structure, logical sequencing, and professional tone.
+   - Avoid dumping raw bullet points; create natural paragraphs, executive overviews, and meaningful headings.
+   - Format lists with concise, impactful bullet points.
+
+4. AUTOMATIC TABLE GENERATION:
+   - Detect data best presented as a table (e.g., Action Items with Owner & Target Date, Milestone Schedules, Expense/Cost Breakdowns, Decision Logs, Risk Registers).
+   - Generate structured tables with explicit column headers and rows. Never invent fake data to populate empty cells.
+
+5. WRITING STYLE & LENGTH:
+   - Writing Style: ${writingStyle} (e.g. professional, executive, formal, simple, academic, technical, concise, persuasive).
+   - Quick Mode: ${quickMode} (organize_only = preserve wording with better structure; professional_rewrite = elevate grammar & tone; full_report = comprehensive synthesis with recommendations).
+   - Length Mode: ${lengthMode} (concise = tight summary; standard = balanced document; detailed = thorough elaboration of all noted items).
+   - Target Language: Output the document title, headings, and entire content strictly in ${language}.`;
+
+    const userPrompt = `Transform this raw content into a beautifully structured, publication-grade professional document:
+
+RAW CONTENT / NOTES:
+"""
+${notesText || '[Image screenshot provided — analyze visible text and diagrams]'}
+"""
+
+Requested Document Type: ${documentType || 'Auto-Detect Most Appropriate'}
+Target Language: ${language}
+Writing Style: ${writingStyle}
+Document Length: ${lengthMode}
+Mode: ${quickMode}
+
+Return a valid JSON object matching this schema:
+{
+  "title": string (engaging, professional document title derived from content),
+  "subtitle": string (optional descriptive subtitle or department/topic line),
+  "documentType": string (the identified or requested document type, e.g. "Meeting Minutes", "Project Progress Report", "Action Plan", "Study Notes", etc.),
+  "category": string (one of "Business Documents", "Professional Documents", "Personal Productivity", "Education and Learning", "Career and Employment", "Creative and Marketing"),
+  "recommendedTheme": string (one of "corporate-blue", "executive-minimal", "modern-professional", "elegant-green", "academic", "creative-modern"),
+  "executiveSummary": string (1-3 sentences capturing the core takeaway),
+  "sections": [
+    {
+      "id": string (e.g. "sec_1"),
+      "heading": string (e.g. "1. Meeting Overview", "2. Discussion & Progress", "3. Action Item Register"),
+      "blocks": [
+        {
+          "type": "paragraph",
+          "id": string,
+          "text": string,
+          "calloutType": "info" | "warning" | "tip" | "quote" (optional)
+        },
+        {
+          "type": "list",
+          "id": string,
+          "style": "bullet" | "numbered" | "checklist",
+          "items": string[]
+        },
+        {
+          "type": "table",
+          "id": string,
+          "caption": string (optional),
+          "headers": string[],
+          "rows": string[][]
+        },
+        {
+          "type": "key_value",
+          "id": string,
+          "pairs": [{ "label": string, "value": string }]
+        }
+      ]
+    }
+  ]
+}`;
+
+    let responseResult;
+    if (imageBase64) {
+      const { data: cleanedData, mimeType: cleanedMime } = stripBase64(imageBase64);
+      responseResult = await AIProviderService.executeWithFallback({
+        role: 'vision',
+        reqId,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  data: cleanedData,
+                  mimeType: cleanedMime || mimeType,
+                },
+              },
+              { text: `${systemInstruction}\n\n${userPrompt}` },
+            ],
+          },
+        ],
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    } else {
+      responseResult = await AIProviderService.executeWithFallback({
+        role: 'text',
+        reqId,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemInstruction}\n\n${userPrompt}` }],
+          },
+        ],
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+    }
+
+    const { response, modelUsed, latencyMs } = responseResult;
+    const rawJsonText = response.text || '{}';
+    const parsed = parseJsonSafe(rawJsonText);
+
+    const docId = `doc_${Date.now()}`;
+    const fullDocument = {
+      id: docId,
+      title: parsed.title || 'Professional Document',
+      subtitle: parsed.subtitle || '',
+      documentType: parsed.documentType || documentType || 'General Professional Document',
+      category: parsed.category || 'Business Documents',
+      language,
+      theme: parsed.recommendedTheme || 'corporate-blue',
+      pageSize: 'A4',
+      orientation: 'portrait',
+      lengthMode,
+      writingStyle,
+      quickMode,
+      executiveSummary: parsed.executiveSummary || '',
+      sections: Array.isArray(parsed.sections) ? parsed.sections : [],
+      metadata: {
+        companyName: metadata.companyName || '',
+        preparedBy: metadata.preparedBy || 'Prepared with SnapAction AI',
+        reviewedBy: metadata.reviewedBy || '',
+        documentReference: metadata.documentReference || `DOC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        date: metadata.date || new Date().toISOString().split('T')[0],
+        confidentialityNotice: metadata.confidentialityNotice || 'Confidential & Proprietary',
+        sourceNoteSummary: (notesText || '').slice(0, 160),
+      },
+      createdAt: new Date().toISOString(),
+      rawInputSnippet: (notesText || '').slice(0, 300),
+      meta: {
+        modelUsed,
+        latencyMs,
+        requestId: reqId,
+      },
+    };
+
+    return res.json(fullDocument);
+  } catch (error: any) {
+    console.error('Error generating smart document:', error);
     const { category, message, httpStatus } = AIProviderService.categorizeError(error);
     return res.status(httpStatus).json({
       error: message,

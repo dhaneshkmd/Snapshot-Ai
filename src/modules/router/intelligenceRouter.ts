@@ -52,6 +52,9 @@ export class SnapActionIntelligenceRouter {
       case 'csv_export':
       case 'calendar_ics_export':
       case 'doc_export':
+      case 'docx_file_generation':
+      case 'pdf_theme_switch':
+      case 'pdf_vector_render':
       case 'history_management':
         return {
           mode: 'MODE_A_INTERNAL',
@@ -68,14 +71,16 @@ export class SnapActionIntelligenceRouter {
           recommendedEngine: 'Gemini Text Generation API',
         };
 
+      case 'smart_pdf_generation':
+      case 'notes_structuring':
       case 'screenshot_understanding':
       case 'action_recommendation':
       default:
         return {
           mode: 'MODE_C_HYBRID',
           rationale:
-            'AI Multimodal Vision for semantic scene understanding combined with deterministic client-side action routing and structured formatting.',
-          recommendedEngine: 'Hybrid Engine (Gemini Multimodal + SnapAction Local Heuristics)',
+            'AI Multimodal & Text Understanding combined with deterministic client-side document typesetting, theme engine, and DOCX/PDF generation.',
+          recommendedEngine: 'Hybrid Engine (Gemini Intelligence + Local PDF Studio Typesetter)',
         };
     }
   }

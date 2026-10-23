@@ -4,8 +4,8 @@ import { LanguageOption } from '../modules/languages/languageData';
 import { SnapActionLogo } from './SnapActionLogo';
 
 interface HeaderProps {
-  currentTab: 'home' | 'history' | 'settings';
-  onSelectTab: (tab: 'home' | 'history' | 'settings') => void;
+  currentTab: 'home' | 'history' | 'settings' | 'pdf';
+  onSelectTab: (tab: 'home' | 'history' | 'settings' | 'pdf') => void;
   historyCount: number;
   darkMode: boolean;
   onToggleTheme: () => void;
@@ -44,6 +44,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action icons / Navigation */}
         <div className="flex items-center gap-1.5">
+          {/* Smart PDF Studio Mode Switcher */}
+          <button
+            onClick={() => onSelectTab(currentTab === 'pdf' ? 'home' : 'pdf')}
+            title="Smart PDF Studio — Turn Messy Notes Into Professional Documents"
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+              currentTab === 'pdf'
+                ? 'bg-blue-600 text-white border-blue-700 shadow-blue-600/30 ring-2 ring-blue-500/30'
+                : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60'
+            }`}
+          >
+            <span>📄</span>
+            <span className="hidden sm:inline">Smart PDF</span>
+          </button>
 
           {pwaInstallPrompt && (
             <button

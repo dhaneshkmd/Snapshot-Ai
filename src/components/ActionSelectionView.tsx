@@ -8,6 +8,7 @@ interface ActionSelectionViewProps {
   onSelectAction: (actionName: string, actionPrompt: string) => void;
   onOpenMoreActions: () => void;
   onOpenReplyStudio?: () => void;
+  onOpenPdfStudio?: () => void;
   onRetake: () => void;
   isExecutingAction: boolean;
 }
@@ -18,6 +19,7 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
   onSelectAction,
   onOpenMoreActions,
   onOpenReplyStudio,
+  onOpenPdfStudio,
   onRetake,
   isExecutingAction,
 }) => {
@@ -168,6 +170,31 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
                 </div>
                 <div className="text-xs text-blue-100/90 line-clamp-1">
                   Tap comments to focus • Reply in Malayalam, Hindi, Arabic & 30+ languages • 96 styles
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">
+                <ArrowRight className="w-4 h-4 text-white" />
+              </div>
+            </div>
+          </button>
+        )}
+
+        {/* Smart PDF Studio Action */}
+        {onOpenPdfStudio && (
+          <button
+            onClick={onOpenPdfStudio}
+            className="w-full text-left p-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white shadow-lg shadow-blue-500/20 active:scale-[0.99] transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-blue-100">
+                  <span>📄</span> Smart PDF Studio
+                </div>
+                <div className="text-base font-bold tracking-tight">
+                  Turn This Screenshot Into a Professional PDF
+                </div>
+                <div className="text-xs text-blue-100/90 line-clamp-1">
+                  Organizes extracted content • Tables • 6 Themes • Word DOCX & Vector PDF
                 </div>
               </div>
               <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">
