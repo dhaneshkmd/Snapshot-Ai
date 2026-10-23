@@ -8,7 +8,6 @@ interface ActionSelectionViewProps {
   onSelectAction: (actionName: string, actionPrompt: string) => void;
   onOpenMoreActions: () => void;
   onOpenReplyStudio?: () => void;
-  onOpenHseVision?: () => void;
   onRetake: () => void;
   isExecutingAction: boolean;
 }
@@ -19,7 +18,6 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
   onSelectAction,
   onOpenMoreActions,
   onOpenReplyStudio,
-  onOpenHseVision,
   onRetake,
   isExecutingAction,
 }) => {
@@ -170,31 +168,6 @@ export const ActionSelectionView: React.FC<ActionSelectionViewProps> = ({
                 </div>
                 <div className="text-xs text-blue-100/90 line-clamp-1">
                   Tap comments to focus • Reply in Malayalam, Hindi, Arabic & 30+ languages • 96 styles
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">
-                <ArrowRight className="w-4 h-4 text-white" />
-              </div>
-            </div>
-          </button>
-        )}
-
-        {/* Smart HSE Vision Entry */}
-        {onOpenHseVision && (
-          <button
-            onClick={onOpenHseVision}
-            className="w-full text-left p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-white shadow-lg shadow-orange-500/20 active:scale-[0.99] transition-all cursor-pointer group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-100">
-                  <span>🦺</span> Smart HSE Vision
-                </div>
-                <div className="text-base font-bold tracking-tight">
-                  Run HSE Photo Hazard Inspection
-                </div>
-                <div className="text-xs text-amber-100/90 line-clamp-1">
-                  Numbered pin markers • 5×5 Risk matrix • Hierarchy of controls • Formal HSE report
                 </div>
               </div>
               <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:translate-x-1 transition-transform shrink-0 ml-3">

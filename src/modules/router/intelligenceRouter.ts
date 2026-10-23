@@ -7,17 +7,9 @@
  * Execution Modes:
  * - MODE A: Internal Processing (Zero AI tokens, local JavaScript/TypeScript algorithms)
  * - MODE B: Cloud AI Processing (Multimodal vision, natural language generation, reasoning)
- * - MODE C: Hybrid Processing (AI Vision + Internal rules, risk calculations, and report generation)
+ * - MODE C: Hybrid Processing (AI Multimodal Understanding + Local Deterministic Actions)
  */
 
-import {
-  HseInspectionReport,
-  HazardObservation,
-  PositiveObservation,
-  calculateRiskLevel,
-  RiskLevel,
-} from '../hse/hseTypes';
-import { getApplicableStandards } from '../hse/hseStandards';
 import { optimizeScreenshot } from '../../utils/imageCompressor';
 
 export type ExecutionMode = 'MODE_A_INTERNAL' | 'MODE_B_AI' | 'MODE_C_HYBRID';
@@ -35,8 +27,8 @@ export interface RouterTelemetry {
   timestamp: string;
 }
 
-// In-memory cache for authorized inspection sessions (keyed by user-session + imageHash)
-const inspectionCache = new Map<string, HseInspectionReport>();
+// In-memory cache for recent processed actions (keyed by imageHash + task)
+const resultCache = new Map<string, any>();
 
 /**
  * SnapAction Intelligence Router Service
@@ -56,9 +48,9 @@ export class SnapActionIntelligenceRouter {
     switch (task) {
       case 'image_optimization':
       case 'hash_generation':
-      case 'risk_matrix_calc':
       case 'entity_extraction_basic':
       case 'csv_export':
+      case 'calendar_ics_export':
       case 'doc_export':
       case 'history_management':
         return {
@@ -76,14 +68,14 @@ export class SnapActionIntelligenceRouter {
           recommendedEngine: 'Gemini Text Generation API',
         };
 
-      case 'worksite_photo_inspection':
-      case 'photo_hazard_understanding':
+      case 'screenshot_understanding':
+      case 'action_recommendation':
       default:
         return {
           mode: 'MODE_C_HYBRID',
           rationale:
-            'Mandatory AI Vision for visual scene understanding, combined with internal HSE standards validation, 5x5 risk calculations, and document generation.',
-          recommendedEngine: 'Hybrid Engine (Gemini Vision + HSE Rules Engine)',
+            'AI Multimodal Vision for semantic scene understanding combined with deterministic client-side action routing and structured formatting.',
+          recommendedEngine: 'Hybrid Engine (Gemini Multimodal + SnapAction Local Heuristics)',
         };
     }
   }
@@ -93,7 +85,7 @@ export class SnapActionIntelligenceRouter {
   // ==========================================
 
   /**
-   * Mode A: Compute unique image fingerprint/hash for session isolation.
+   * Mode A: Compute unique image fingerprint/hash for session isolation and duplicate detection.
    */
   public static computeImageHash(base64: string): string {
     const len = base64.length;
@@ -102,7 +94,7 @@ export class SnapActionIntelligenceRouter {
   }
 
   /**
-   * Mode A: Optimize worksite photograph locally before transmission.
+   * Mode A: Optimize screenshot locally before transmission.
    */
   public static async optimizeImage(file: File, maxWidth = 1280, quality = 0.85) {
     this.telemetry = {
@@ -112,13 +104,6 @@ export class SnapActionIntelligenceRouter {
       timestamp: new Date().toISOString(),
     };
     return await optimizeScreenshot(file, maxWidth, quality);
-  }
-
-  /**
-   * Mode A: Calculate preliminary risk using the 5x5 matrix.
-   */
-  public static calculateRisk(likelihood: number, severity: number): { score: number; level: RiskLevel } {
-    return calculateRiskLevel(likelihood, severity);
   }
 
   /**
@@ -138,172 +123,11 @@ export class SnapActionIntelligenceRouter {
     return entities;
   }
 
-  // ==========================================
-  // MODE C — HYBRID PROCESSING FOR HSE VISION
-  // ==========================================
-
-  /**
-   * Mode C: Process Worksite Photograph.
-   *
-   * Flow:
-   * 1. Internal: Compute image hash.
-   * 2. Internal: Check memory cache for identical authorized photo.
-   * 3. AI Vision: Call server `/api/hse-analyze` for semantic understanding.
-   * 4. Internal: Validate findings, clamp coordinates, and map verified regulatory standards.
-   * 5. Internal: Calculate 5x5 risk matrix priorities and overall site risk.
-   */
-  public static async inspectWorksitePhoto(params: {
-    imageBase64: string;
-    mimeType: string;
-    filename?: string;
-    jurisdiction?: string;
-    language?: string;
-    forceRefresh?: boolean;
-  }): Promise<{
-    report: HseInspectionReport;
-    mode: ExecutionMode;
-    cached: boolean;
-  }> {
-    const { imageBase64, mimeType, filename, jurisdiction = 'International (OSHA/ISO)', language = 'English', forceRefresh = false } = params;
-
-    const imageHash = this.computeImageHash(imageBase64);
-
-    // 1. Check cache (Internal Processing)
-    if (!forceRefresh && inspectionCache.has(imageHash)) {
-      const cached = inspectionCache.get(imageHash)!;
-      this.telemetry = {
-        lastTask: 'Worksite Inspection (Cache Hit)',
-        lastMode: 'MODE_A_INTERNAL',
-        cacheHit: true,
-        timestamp: new Date().toISOString(),
-      };
-      return {
-        report: cached,
-        mode: 'MODE_A_INTERNAL',
-        cached: true,
-      };
-    }
-
-    // 2. Call Mandatory AI Vision API (AI Processing)
-    this.telemetry = {
-      lastTask: 'Worksite AI Vision Analysis',
-      lastMode: 'MODE_C_HYBRID',
-      cacheHit: false,
-      timestamp: new Date().toISOString(),
-    };
-
-    const res = await fetch('/api/hse-analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageBase64,
-        mimeType,
-        jurisdiction,
-        preferredLanguage: language,
-      }),
-    });
-
-    if (!res.ok) {
-      let errMessage = `Inspection analysis failed with status ${res.status}`;
-      try {
-        const errJson = await res.json();
-        if (errJson.error) errMessage = errJson.error;
-      } catch {}
-      throw new Error(errMessage);
-    }
-
-    const aiData = await res.json();
-
-    // 3. Post-Processing & Standards Grounding (Internal Processing)
-    const enrichedObservations: HazardObservation[] = (aiData.observations || []).map(
-      (obs: any, idx: number) => {
-        const l = Math.max(1, Math.min(5, Math.round(Number(obs.likelihood) || 3)));
-        const s = Math.max(1, Math.min(5, Math.round(Number(obs.severity) || 3)));
-        const { score, level } = calculateRiskLevel(l, s);
-
-        const xClamped = Math.max(2, Math.min(98, Math.round(Number(obs.xPercent) || 50)));
-        const yClamped = Math.max(2, Math.min(98, Math.round(Number(obs.yPercent) || 50)));
-
-        const standards =
-          obs.applicableStandards && obs.applicableStandards.length > 0
-            ? obs.applicableStandards
-            : getApplicableStandards(obs.hazardCategory);
-
-        return {
-          ...obs,
-          id: obs.id || `HAZ-${String(idx + 1).padStart(2, '0')}`,
-          markerNumber: obs.markerNumber || idx + 1,
-          xPercent: xClamped,
-          yPercent: yClamped,
-          likelihood: l,
-          severity: s,
-          riskScore: score,
-          riskRating: level,
-          applicableStandards: standards,
-          actionStatus: obs.actionStatus || 'Open',
-          residualRisk: obs.residualRisk || 'Low',
-        };
-      }
-    );
-
-    const hasCritical = enrichedObservations.some((o) => o.riskRating === 'Critical');
-    const hasHigh = enrichedObservations.some((o) => o.riskRating === 'High');
-    const calculatedOverallRisk: RiskLevel = hasCritical
-      ? 'Critical'
-      : hasHigh
-      ? 'High'
-      : enrichedObservations.length > 0
-      ? 'Medium'
-      : 'Low';
-
-    const photoObj = {
-      id: `photo_${Date.now()}`,
-      base64: imageBase64,
-      mimeType,
-      caption: filename || `${aiData.primaryActivity || 'Worksite'} Visual Inspection`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    const finalReport: HseInspectionReport = {
-      id: `HSE-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`,
-      imageHash,
-      reportTitle: aiData.reportTitle || `${aiData.primaryActivity || 'Worksite'} HSE Safety Inspection`,
-      inspectionDate: new Date().toISOString().split('T')[0],
-      inspectionTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      siteName: aiData.siteName || 'Active Construction Project Sector',
-      projectNumber: aiData.projectNumber || 'PRJ-2026-HSE',
-      workArea: aiData.workArea || 'Active Worksite Zone',
-      primaryActivity: aiData.primaryActivity || aiData.activityObserved || 'Industrial Worksite Operation',
-      secondaryActivities: aiData.secondaryActivities || [],
-      activityObserved: aiData.activityObserved || aiData.primaryActivity || 'Worksite Operations',
-      inspectorName: aiData.inspectorName || 'Senior Safety Auditor (Competent Person)',
-      inspectorDesignation: aiData.inspectorDesignation || 'Chartered HSE Inspector (NEBOSH / CMIOSH)',
-      executiveSummary: aiData.executiveSummary || 'Visual workplace inspection completed.',
-      overallSiteRisk: aiData.overallSiteRisk || calculatedOverallRisk,
-      photos: [photoObj],
-      selectedPhotoId: photoObj.id,
-      observations: enrichedObservations,
-      positiveObservations: aiData.positiveObservations || [],
-      mattersRequiringFieldVerification: aiData.mattersRequiringFieldVerification || [],
-      jurisdiction: 'International (OSHA/ISO)',
-      reportLanguage: language,
-    };
-
-    // Cache authorized result
-    inspectionCache.set(imageHash, finalReport);
-
-    return {
-      report: finalReport,
-      mode: 'MODE_C_HYBRID',
-      cached: false,
-    };
-  }
-
   /**
    * Clear cache for privacy or memory management.
    */
   public static clearCache(): void {
-    inspectionCache.clear();
+    resultCache.clear();
   }
 
   /**

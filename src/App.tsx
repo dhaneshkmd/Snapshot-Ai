@@ -25,7 +25,6 @@ import {
 } from './utils/storage';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 import { CommentReplyStudio } from './components/CommentReplyStudio';
-import { HseVisionStudio } from './components/hse/HseVisionStudio';
 import { LanguageSelectorModal } from './components/LanguageSelectorModal';
 import { DiagnosticsModal } from './components/DiagnosticsModal';
 import {
@@ -63,7 +62,7 @@ function formatErrorMessage(errData: any, fallback: string): string {
 }
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings' | 'hse'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'history' | 'settings'>('home');
   const [stage, setStage] = useState<'upload' | 'analyzing' | 'recommend' | 'result' | 'comment_reply'>('upload');
   
   const [currentImage, setCurrentImage] = useState<{
@@ -601,32 +600,12 @@ export default function App() {
           />
         )}
 
-        {/* Tab: HSE Vision Studio */}
-        {currentTab === 'hse' && (
-          <HseVisionStudio
-            onBackToMain={() => setCurrentTab('home')}
-            globalLanguage={globalLanguage}
-            onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
-            onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
-            initialPhoto={
-              currentImage
-                ? {
-                    base64: currentImage.base64,
-                    mimeType: currentImage.mimeType,
-                    filename: currentImage.filename,
-                  }
-                : undefined
-            }
-          />
-        )}
-
         {/* Tab: Home Flow */}
         {currentTab === 'home' && (
           <>
             {stage === 'upload' && (
               <HomeScreen
                 onImageSelected={handleImageSelected}
-                onOpenHseVision={() => setCurrentTab('hse')}
                 isProcessing={false}
               />
             )}
@@ -642,7 +621,6 @@ export default function App() {
                 onSelectAction={handleSelectAction}
                 onOpenMoreActions={() => setIsMoreActionsOpen(true)}
                 onOpenReplyStudio={() => setStage('comment_reply')}
-                onOpenHseVision={() => setCurrentTab('hse')}
                 onRetake={handleResetToHome}
                 isExecutingAction={isExecutingAction}
               />

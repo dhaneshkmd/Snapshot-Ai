@@ -219,7 +219,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
               Active Server Routes (All Operational)
             </span>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {(healthData?.activeRoutes || ['/api/hse-analyze', '/api/analyze-screenshot', '/api/execute-action', '/api/health']).map(
+              {(healthData?.activeRoutes || ['/api/analyze-screenshot', '/api/execute-action', '/api/local-ocr', '/api/health']).map(
                 (route: string) => (
                   <div
                     key={route}
