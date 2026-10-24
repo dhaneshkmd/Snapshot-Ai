@@ -29,6 +29,10 @@ import {
   RotateCcw,
   BookOpen,
   CheckCircle2,
+  ChevronUp,
+  Wand2,
+  Layout,
+  ListOrdered,
 } from 'lucide-react';
 import {
   SmartDocument,
@@ -44,8 +48,15 @@ import {
   SAMPLE_NOTE_SCENARIOS,
   SampleNoteScenario,
   getTemplateById,
+  LayoutStyle,
+  DocumentDensity,
+  HeadingStyle,
 } from '../../modules/pdfStudio/documentTypes';
 import { generateLocalFallbackDocument } from '../../modules/pdfStudio/localDocumentArchitect';
+import {
+  restructureDocumentArchitecture,
+  validateDocumentQuality,
+} from '../../modules/pdfStudio/dynamicDocumentArchitect';
 import { exportDocumentToDocx, triggerDownload } from '../../modules/pdfStudio/docxExporter';
 import { printDocumentAsPdf, downloadVectorPdfDirect } from '../../modules/pdfStudio/pdfExporter';
 import { LanguageOption } from '../../modules/languages/languageData';
@@ -93,6 +104,10 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   const [document, setDocument] = useState<SmartDocument | null>(null);
   const [activeTab, setActiveTab] = useState<'preview' | 'before_after' | 'edit'>('preview');
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false);
+  const [isRestructureModalOpen, setIsRestructureModalOpen] = useState(false);
+  const [isDesignModalOpen, setIsDesignModalOpen] = useState(false);
+  const [isRestructuring, setIsRestructuring] = useState(false);
+  const [customRestructureInput, setCustomRestructureInput] = useState('');
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
 
@@ -490,6 +505,74 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
       ],
     };
     setDocument({ ...document, sections: [...document.sections, newSec] });
+  };
+
+  // Reorder Sections Up or Down
+  const handleMoveSection = (index: number, direction: 'up' | 'down') => {
+    if (!document) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= document.sections.length) return;
+    const newSections = [...document.sections];
+    const temp = newSections[index];
+    newSections[index] = newSections[targetIndex];
+    newSections[targetIndex] = temp;
+    setDocument({ ...document, sections: newSections });
+  };
+
+  // Restructure Document with 10 Architect Modes
+  const handleRestructure = async (
+    mode:
+      | 'more_concise'
+      | 'more_detailed'
+      | 'more_narrative'
+      | 'more_structured'
+      | 'less_tables'
+      | 'more_tables'
+      | 'simplify'
+      | 'executive_format'
+      | 'educational_format'
+      | 'custom_instructions',
+    customPrompt?: string
+  ) => {
+    if (!document) return;
+    setIsRestructuring(true);
+    setErrorMessage(null);
+
+    // 1. Attempt Server-side restructuring first
+    try {
+      const res = await fetch('/api/restructure-smart-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document,
+          mode,
+          customInstructions: customPrompt,
+        }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setDocument(updated);
+        setIsRestructureModalOpen(false);
+        setInfoNotice(`Document successfully restructured (${mode.replace(/_/g, ' ')}).`);
+        setIsRestructuring(false);
+        return;
+      }
+    } catch (netErr) {
+      console.warn('Server restructure error, falling back to local engine:', netErr);
+    }
+
+    // 2. Resilient Local Document Architecture Restructuring
+    try {
+      const restructuredDoc = restructureDocumentArchitecture(document, mode, customPrompt);
+      setDocument(restructuredDoc);
+      setIsRestructureModalOpen(false);
+      setInfoNotice(`Restructured via Dynamic Architect engine (${mode.replace(/_/g, ' ')}).`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to restructure document.');
+    } finally {
+      setIsRestructuring(false);
+    }
   };
 
   // Export to Native DOCX
@@ -1083,6 +1166,117 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
             </div>
           </div>
 
+          {/* DYNAMIC DOCUMENT ARCHITECT BRIEF & 4 PRIMARY ACTIONS */}
+          <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-violet-500/10 dark:from-blue-950/40 dark:via-indigo-950/40 dark:to-violet-950/40 border border-blue-200/60 dark:border-blue-800/60 rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-sm">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-2xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                    Content-Driven Document Architecture
+                  </div>
+                  <div className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>{document.documentType}</span>
+                    <span className="text-[11px] font-medium text-slate-500">
+                      ({document.sections.length} tailored sections · {document.designProfile?.layoutStyle || 'adaptive'} layout)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quality & Relevance Score */}
+              {(() => {
+                const report = validateDocumentQuality(document, inputText);
+                const isPass = report.score >= 80;
+                return (
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${
+                      isPass
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}
+                    title={report.summary}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Fidelity Score: {report.score}/100</span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Synthesized Section Heading Chips */}
+            <div>
+              <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <span>Proposed Section Headings:</span>
+                <span className="text-[10px] font-normal text-slate-400">(Derived directly from source content)</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {document.sections.map((sec, sIdx) => (
+                  <span
+                    key={sec.id}
+                    className="text-xs px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold shadow-2xs flex items-center gap-1.5"
+                  >
+                    <span className="text-[10px] font-black text-blue-600 dark:text-blue-400">
+                      {sIdx + 1}.
+                    </span>
+                    <span>{sec.heading}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* The 4 Primary Actions Bar */}
+            <div className="pt-2 border-t border-blue-200/40 dark:border-blue-800/40 flex items-center justify-between flex-wrap gap-2">
+              <div className="text-[11px] text-slate-500 font-medium">
+                The content determines the document. No boilerplate templates forced.
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* 1. Edit Structure */}
+                <button
+                  onClick={() => setActiveTab('edit')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    activeTab === 'edit'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Structure
+                </button>
+
+                {/* 2. Change Design */}
+                <button
+                  onClick={() => setIsDesignModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 shadow-2xs"
+                >
+                  <Layout className="w-3.5 h-3.5 text-indigo-500" />
+                  Change Design
+                </button>
+
+                {/* 3. Restructure Document */}
+                <button
+                  onClick={() => setIsRestructureModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 shadow-2xs"
+                >
+                  <Wand2 className="w-3.5 h-3.5 text-purple-500" />
+                  Restructure Document
+                </button>
+
+                {/* 4. Generate PDF */}
+                <button
+                  onClick={() => printDocumentAsPdf(document)}
+                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer active:scale-95 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Generate PDF
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Theme & Page Setup Ribbon */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between flex-wrap gap-3">
             {/* 6 Theme Selector Pills */}
@@ -1361,6 +1555,69 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
                               </div>
                             );
                           }
+                          if (b.type === 'subheading') {
+                            return (
+                              <h3
+                                key={b.id}
+                                className="text-xs sm:text-sm font-bold pt-2 pb-0.5 tracking-tight border-b border-slate-100"
+                                style={{ color: currentTheme.secondaryColor }}
+                              >
+                                {b.text}
+                              </h3>
+                            );
+                          }
+                          if (b.type === 'timeline') {
+                            return (
+                              <div
+                                key={b.id}
+                                className="space-y-2 py-2 border-l-2 pl-3 ml-1 my-2"
+                                style={{ borderColor: currentTheme.borderColor }}
+                              >
+                                {b.events.map((ev, eIdx) => (
+                                  <div key={eIdx} className="text-xs space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className="text-[10px] font-bold px-2 py-0.5 rounded text-white shadow-2xs"
+                                        style={{ backgroundColor: currentTheme.primaryColor }}
+                                      >
+                                        {ev.timeOrDay}
+                                      </span>
+                                      <span className="font-bold text-slate-900">{ev.title}</span>
+                                    </div>
+                                    <p className="text-slate-600 pl-1 text-[11px] leading-relaxed">
+                                      {ev.description}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          if (b.type === 'callout') {
+                            const calloutStyle =
+                              b.kind === 'warning'
+                                ? 'bg-amber-50/80 border-amber-400 text-amber-950'
+                                : b.kind === 'takeaway' || b.kind === 'highlight'
+                                ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                                : b.kind === 'quote'
+                                ? 'bg-purple-50/80 border-purple-400 text-purple-950 italic'
+                                : 'bg-blue-50/80 border-blue-400 text-blue-950';
+                            return (
+                              <div
+                                key={b.id}
+                                className={`p-3 rounded-xl border-l-4 my-2 text-xs leading-relaxed ${calloutStyle}`}
+                              >
+                                <div className="font-bold uppercase tracking-wider text-[10px] mb-1">
+                                  {b.kind}
+                                </div>
+                                <div>{b.text}</div>
+                                {b.authorOrSource && (
+                                  <div className="text-[10px] text-slate-500 mt-1 italic">
+                                    — {b.authorOrSource}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
                           return null;
                         })}
                       </div>
@@ -1518,13 +1775,31 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
                         />
                       </div>
 
-                      <button
-                        onClick={() => handleDeleteSection(sec.id)}
-                        className="text-slate-400 hover:text-rose-500 p-1"
-                        title="Delete Section"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleMoveSection(secIdx, 'up')}
+                          disabled={secIdx === 0}
+                          className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                          title="Move Section Up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveSection(secIdx, 'down')}
+                          disabled={secIdx === document.sections.length - 1}
+                          className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-20 cursor-pointer"
+                          title="Move Section Down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSection(sec.id)}
+                          className="text-slate-400 hover:text-rose-500 p-1 cursor-pointer"
+                          title="Delete Section"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Section Blocks */}
@@ -1807,6 +2082,307 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
               className="w-full py-2.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold text-xs"
             >
               Apply to Document
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5. RESTRUCTURE DOCUMENT MODAL (10 Modes) */}
+      {/* ========================================================= */}
+      {isRestructureModalOpen && document && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-xl bg-purple-600 text-white">
+                  <Wand2 className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Restructure Document Architecture
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Reshape document flow, density, narrative depth, or tabular structure.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRestructureModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 10 Restructuring Modes */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-1 flex-1 text-xs">
+              {[
+                {
+                  id: 'more_concise' as const,
+                  title: 'More Concise',
+                  desc: 'Tighten prose, consolidate overlapping points, eliminate filler.',
+                  emoji: '✂️',
+                },
+                {
+                  id: 'more_detailed' as const,
+                  title: 'More Detailed',
+                  desc: 'Elaborate background context, provide explanatory clarity.',
+                  emoji: '🔍',
+                },
+                {
+                  id: 'more_narrative' as const,
+                  title: 'More Narrative',
+                  desc: 'Flowing paragraphs, cohesive prose story, reduced bullet lists.',
+                  emoji: '📖',
+                },
+                {
+                  id: 'more_structured' as const,
+                  title: 'More Structured',
+                  desc: 'Crisp bullet groupings, subheadings, and distinct checkpoints.',
+                  emoji: '📋',
+                },
+                {
+                  id: 'less_tables' as const,
+                  title: 'Less Tables',
+                  desc: 'Convert data tables into fluid paragraphs and descriptive bullets.',
+                  emoji: '📝',
+                },
+                {
+                  id: 'more_tables' as const,
+                  title: 'More Tables Where Useful',
+                  desc: 'Synthesize structured comparison, parameter, or status registers.',
+                  emoji: '📊',
+                },
+                {
+                  id: 'simplify' as const,
+                  title: 'Simplify',
+                  desc: 'Plain language, accessible terminology, straightforward headings.',
+                  emoji: '💡',
+                },
+                {
+                  id: 'executive_format' as const,
+                  title: 'Executive Format',
+                  desc: 'High-impact context, core findings, decisive strategic framing.',
+                  emoji: '💼',
+                },
+                {
+                  id: 'educational_format' as const,
+                  title: 'Educational Format',
+                  desc: 'Topic breakdowns, study guide concepts, and key takeaways.',
+                  emoji: '🎓',
+                },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  disabled={isRestructuring}
+                  onClick={() => handleRestructure(m.id)}
+                  className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-400 bg-slate-50/50 dark:bg-slate-800/40 text-left transition-all hover:shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white">
+                    <span>{m.emoji}</span>
+                    <span>{m.title}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">{m.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Restructure Instructions Input */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2 shrink-0">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Custom Architectural Instructions (Optional)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Focus on financial breakdown, or emphasize safety protocols..."
+                  value={customRestructureInput}
+                  onChange={(e) => setCustomRestructureInput(e.target.value)}
+                  className="flex-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none"
+                />
+                <button
+                  disabled={isRestructuring || !customRestructureInput.trim()}
+                  onClick={() =>
+                    handleRestructure('custom_instructions', customRestructureInput.trim())
+                  }
+                  className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  {isRestructuring ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-3.5 h-3.5" />
+                  )}
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {isRestructuring && (
+              <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-bold flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+                <span>Restructuring document architecture & recalculating layout...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 6. CHANGE DESIGN MODAL */}
+      {/* ========================================================= */}
+      {isDesignModalOpen && document && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 rounded-xl bg-indigo-600 text-white">
+                  <Layout className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Document Presentation & Design Profile
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Instant styling layer without re-running content generation.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDesignModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Layout Style */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Adaptive Layout Style
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { id: 'compact_brief' as const, name: 'Compact Brief', desc: '1-page condensed density' },
+                  { id: 'standard_editorial' as const, name: 'Standard Editorial', desc: 'Clean, elegant whitespace' },
+                  { id: 'academic_formal' as const, name: 'Academic Formal', desc: 'Rigorous hierarchy & notes' },
+                  { id: 'chronological_timeline' as const, name: 'Chronological', desc: 'Timeline & sequence cards' },
+                  { id: 'executive_presentation' as const, name: 'Executive Presentation', desc: 'Corporate report standard' },
+                  { id: 'two_column_dense' as const, name: 'Two-Column Dense', desc: 'Data & specs emphasis' },
+                ].map((l) => {
+                  const isCur = (document.designProfile?.layoutStyle || 'standard_editorial') === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() =>
+                        handleUpdateDocumentField({
+                          designProfile: {
+                            ...(document.designProfile || {
+                              density: 'balanced',
+                              tablePreference: 'selective',
+                              headingStyle: 'numbered',
+                            }),
+                            layoutStyle: l.id,
+                          },
+                        })
+                      }
+                      className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        isCur
+                          ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-1 ring-indigo-500 font-bold text-slate-900 dark:text-white'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>{l.name}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{l.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Heading Style */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Heading Ornamentation Style
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { id: 'numbered' as const, name: 'Numbered Box', preview: '01 Heading' },
+                  { id: 'minimal' as const, name: 'Minimal Clean', preview: 'Heading' },
+                  { id: 'pill_badge' as const, name: 'Pill Badge', preview: '● Heading' },
+                  { id: 'underlined' as const, name: 'Underlined', preview: 'Heading ──' },
+                ].map((hs) => {
+                  const isCur = (document.designProfile?.headingStyle || 'numbered') === hs.id;
+                  return (
+                    <button
+                      key={hs.id}
+                      onClick={() =>
+                        handleUpdateDocumentField({
+                          designProfile: {
+                            ...(document.designProfile || {
+                              layoutStyle: 'standard_editorial',
+                              density: 'balanced',
+                              tablePreference: 'selective',
+                            }),
+                            headingStyle: hs.id,
+                          },
+                        })
+                      }
+                      className={`p-2 rounded-xl border text-left cursor-pointer ${
+                        isCur
+                          ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/40 ring-1 ring-blue-500 font-bold text-slate-900 dark:text-white'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div>{hs.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{hs.preview}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Density */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                Information Spacing Density
+              </label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {(['compact', 'balanced', 'spacious'] as DocumentDensity[]).map((den) => {
+                  const isCur = (document.designProfile?.density || 'balanced') === den;
+                  return (
+                    <button
+                      key={den}
+                      onClick={() =>
+                        handleUpdateDocumentField({
+                          designProfile: {
+                            ...(document.designProfile || {
+                              layoutStyle: 'standard_editorial',
+                              tablePreference: 'selective',
+                              headingStyle: 'numbered',
+                            }),
+                            density: den,
+                          },
+                        })
+                      }
+                      className={`p-2 rounded-xl border text-center capitalize cursor-pointer ${
+                        isCur
+                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 ring-1 ring-emerald-500 font-bold text-slate-900 dark:text-white'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {den}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsDesignModalOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-bold text-xs cursor-pointer shadow-sm"
+            >
+              Done & Return to Preview
             </button>
           </div>
         </div>

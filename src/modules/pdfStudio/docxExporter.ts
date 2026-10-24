@@ -294,6 +294,79 @@ export async function exportDocumentToDocx(doc: SmartDocument): Promise<Blob> {
             spacing: { after: 180 },
           })
         );
+      } else if (block.type === 'subheading') {
+        docChildren.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 180, after: 80 },
+            children: [
+              new TextRun({
+                text: block.text,
+                bold: true,
+                size: 24, // 12pt
+                color: primaryHex,
+                font: 'Arial',
+              }),
+            ],
+          })
+        );
+      } else if (block.type === 'timeline') {
+        for (const ev of block.events) {
+          docChildren.push(
+            new Paragraph({
+              spacing: { after: 60 },
+              children: [
+                new TextRun({
+                  text: `[${ev.timeOrDay}] `,
+                  bold: true,
+                  color: secondaryHex,
+                  font: 'Arial',
+                  size: 20,
+                }),
+                new TextRun({
+                  text: `${ev.title}: `,
+                  bold: true,
+                  color: primaryHex,
+                  font: 'Arial',
+                  size: 22,
+                }),
+                new TextRun({
+                  text: ev.description,
+                  font: 'Arial',
+                  size: 22,
+                }),
+              ],
+            })
+          );
+        }
+      } else if (block.type === 'callout') {
+        docChildren.push(
+          new Paragraph({
+            spacing: { before: 120, after: 120 },
+            indent: { left: convertInchesToTwip(0.2) },
+            children: [
+              new TextRun({
+                text: block.text,
+                italics: true,
+                bold: block.kind === 'warning' || block.kind === 'highlight',
+                size: 22,
+                color: primaryHex,
+                font: 'Arial',
+              }),
+              ...(block.authorOrSource
+                ? [
+                    new TextRun({
+                      text: ` — ${block.authorOrSource}`,
+                      italics: true,
+                      size: 18,
+                      color: '64748B',
+                      font: 'Arial',
+                    }),
+                  ]
+                : []),
+            ],
+          })
+        );
       }
     }
   }

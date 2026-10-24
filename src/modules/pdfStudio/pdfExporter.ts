@@ -18,6 +18,12 @@ export function buildDocumentHtml(doc: SmartDocument): string {
   const theme = DOCUMENT_THEMES[doc.theme] || DOCUMENT_THEMES['corporate-blue'];
   const isLandscape = doc.orientation === 'landscape';
   const pageSize = doc.pageSize === 'Letter' ? 'letter' : 'a4';
+  const designProfile = doc.designProfile || {
+    layoutStyle: 'standard_editorial',
+    density: 'balanced',
+    tablePreference: 'minimal',
+    headingStyle: 'underlined',
+  };
 
   const sectionsHtml = doc.sections
     .map((sec, secIdx) => {
@@ -28,6 +34,9 @@ export function buildDocumentHtml(doc: SmartDocument): string {
               ? `callout callout-${b.calloutType}`
               : '';
             return `<p class="${calloutClass}">${escapeHtml(b.text)}</p>`;
+          }
+          if (b.type === 'subheading') {
+            return `<h3 class="doc-subheading">${escapeHtml(b.text)}</h3>`;
           }
           if (b.type === 'list') {
             const tag = b.style === 'numbered' ? 'ol' : 'ul';
@@ -45,6 +54,28 @@ export function buildDocumentHtml(doc: SmartDocument): string {
               .join('');
             return `<table class="kv-table">${rows}</table>`;
           }
+          if (b.type === 'timeline') {
+            const eventsHtml = b.events
+              .map(
+                (ev) => `
+                <div class="timeline-step">
+                  <div class="timeline-badge">${escapeHtml(ev.timeOrDay)}</div>
+                  <div class="timeline-body">
+                    <div class="timeline-title">${escapeHtml(ev.title)}</div>
+                    <div class="timeline-desc">${escapeHtml(ev.description)}</div>
+                  </div>
+                </div>`
+              )
+              .join('');
+            return `<div class="timeline-container">${eventsHtml}</div>`;
+          }
+          if (b.type === 'callout') {
+            return `
+              <div class="doc-callout callout-${b.kind}">
+                <div class="callout-content">${escapeHtml(b.text)}</div>
+                ${b.authorOrSource ? `<div class="callout-attribution">— ${escapeHtml(b.authorOrSource)}</div>` : ''}
+              </div>`;
+          }
           if (b.type === 'table') {
             const th =
               b.headers && b.headers.length > 0
@@ -58,18 +89,34 @@ export function buildDocumentHtml(doc: SmartDocument): string {
                   `<tr>${row.map((c) => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`
               )
               .join('');
-            return `<div class="table-wrapper"><table class="data-table">${th}<tbody>${trs}</tbody></table></div>`;
+            const captionHtml = b.caption ? `<div class="table-caption">${escapeHtml(b.caption)}</div>` : '';
+            return `<div class="table-wrapper">${captionHtml}<table class="data-table">${th}<tbody>${trs}</tbody></table></div>`;
           }
           return '';
         })
         .join('');
 
-      return `
-        <div class="doc-section">
-          <h2 class="section-title">
+      let headingHtml = '';
+      if (designProfile.headingStyle === 'numbered') {
+        headingHtml = `
+          <h2 class="section-title heading-numbered">
             <span class="section-num">${String(secIdx + 1).padStart(2, '0')}</span>
             ${escapeHtml(sec.heading)}
-          </h2>
+          </h2>`;
+      } else if (designProfile.headingStyle === 'pill_badge') {
+        headingHtml = `
+          <h2 class="section-title heading-pill">
+            <span class="pill-tag">${escapeHtml(sec.heading)}</span>
+          </h2>`;
+      } else if (designProfile.headingStyle === 'minimal') {
+        headingHtml = `<h2 class="section-title heading-minimal">${escapeHtml(sec.heading)}</h2>`;
+      } else {
+        headingHtml = `<h2 class="section-title heading-underlined">${escapeHtml(sec.heading)}</h2>`;
+      }
+
+      return `
+        <div class="doc-section">
+          ${headingHtml}
           <div class="section-body">
             ${blocksHtml}
           </div>
@@ -239,6 +286,95 @@ export function buildDocumentHtml(doc: SmartDocument): string {
       background: #faf5ff;
       border-left-color: #a855f7;
       font-style: italic;
+    }
+    .heading-minimal {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .heading-pill .pill-tag {
+      background: ${theme.badgeBg};
+      color: ${theme.badgeTextColor};
+      padding: 3pt 10pt;
+      border-radius: 12pt;
+      font-size: 11pt;
+    }
+    .heading-underlined {
+      border-bottom: 2pt solid ${theme.secondaryColor};
+      padding-bottom: 4pt;
+    }
+    .doc-subheading {
+      font-family: ${theme.fontFamilyHeading};
+      font-size: 11pt;
+      font-weight: 700;
+      color: ${theme.primaryColor};
+      margin: 10pt 0 4pt 0;
+    }
+    .timeline-container {
+      margin: 8pt 0 14pt 4pt;
+      border-left: 2pt solid ${theme.borderColor};
+      padding-left: 12pt;
+    }
+    .timeline-step {
+      margin-bottom: 10pt;
+      position: relative;
+    }
+    .timeline-badge {
+      display: inline-block;
+      font-size: 8.5pt;
+      font-weight: 800;
+      color: ${theme.badgeTextColor};
+      background: ${theme.badgeBg};
+      padding: 2pt 6pt;
+      border-radius: 4pt;
+      margin-bottom: 2pt;
+    }
+    .timeline-title {
+      font-weight: 700;
+      font-size: 10.5pt;
+      color: ${theme.primaryColor};
+    }
+    .timeline-desc {
+      font-size: 10pt;
+      color: #334155;
+      margin-top: 2pt;
+    }
+    .doc-callout {
+      padding: 9pt 12pt;
+      border-radius: 6pt;
+      margin: 8pt 0 12pt 0;
+      background: #f8fafc;
+      border-left: 3.5pt solid ${theme.secondaryColor};
+    }
+    .callout-content {
+      font-size: 10.5pt;
+      color: #1e293b;
+    }
+    .callout-attribution {
+      font-size: 9pt;
+      color: #64748b;
+      font-style: italic;
+      margin-top: 4pt;
+      text-align: right;
+    }
+    .callout-warning {
+      background: #fffbeb;
+      border-left-color: #f59e0b;
+    }
+    .callout-highlight {
+      background: #eff6ff;
+      border-left-color: #3b82f6;
+    }
+    .callout-takeaway {
+      background: #f0fdf4;
+      border-left-color: #10b981;
+    }
+    .table-caption {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4pt;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
     .doc-list {
       margin: 4pt 0 10pt 0;

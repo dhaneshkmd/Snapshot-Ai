@@ -163,6 +163,13 @@ export interface ParagraphBlock {
   calloutType?: 'info' | 'warning' | 'tip' | 'quote';
 }
 
+export interface SubheadingBlock {
+  type: 'subheading';
+  id: string;
+  text: string;
+  level?: 2 | 3;
+}
+
 export interface ListBlock {
   type: 'list';
   id: string;
@@ -176,6 +183,7 @@ export interface TableBlock {
   caption?: string;
   headers: string[];
   rows: string[][];
+  tableType?: 'data' | 'action_register' | 'comparison' | 'timeline_table';
 }
 
 export interface KeyValueBlock {
@@ -184,13 +192,77 @@ export interface KeyValueBlock {
   pairs: { label: string; value: string }[];
 }
 
-export type ContentBlock = ParagraphBlock | ListBlock | TableBlock | KeyValueBlock;
+export interface TimelineEvent {
+  timeOrDay: string;
+  title: string;
+  description: string;
+}
+
+export interface TimelineBlock {
+  type: 'timeline';
+  id: string;
+  events: TimelineEvent[];
+}
+
+export interface CalloutBlock {
+  type: 'callout';
+  id: string;
+  kind: 'quote' | 'highlight' | 'takeaway' | 'warning' | 'reference';
+  text: string;
+  authorOrSource?: string;
+}
+
+export type ContentBlock =
+  | ParagraphBlock
+  | SubheadingBlock
+  | ListBlock
+  | TableBlock
+  | KeyValueBlock
+  | TimelineBlock
+  | CalloutBlock;
 
 export interface DocumentSection {
   id: string;
   heading: string;
+  purpose?: string;
   icon?: string;
   blocks: ContentBlock[];
+}
+
+export type LayoutStyle =
+  | 'standard_editorial'
+  | 'compact_brief'
+  | 'chronological_timeline'
+  | 'academic_formal'
+  | 'executive_presentation'
+  | 'two_column_dense';
+
+export type DocumentDensity = 'compact' | 'balanced' | 'spacious';
+export type TablePreference = 'none' | 'minimal' | 'structured' | 'analytical';
+export type HeadingStyle = 'minimal' | 'numbered' | 'pill_badge' | 'underlined';
+
+export interface DocumentDesignProfile {
+  layoutStyle: LayoutStyle;
+  density: DocumentDensity;
+  tablePreference: TablePreference;
+  headingStyle: HeadingStyle;
+  accentElement?: 'divider' | 'left_border' | 'card_wrap' | 'none';
+}
+
+export interface DocumentValidationReport {
+  passed: boolean;
+  score: number; // 0 - 100
+  checks: {
+    contentRelevance: boolean;
+    sectionRelevance: boolean;
+    headingAccuracy: boolean;
+    logicalSequence: boolean;
+    noRepetition: boolean;
+    tableAppropriateness: boolean;
+    sourceFidelity: boolean;
+    layoutQuality: boolean;
+  };
+  summary: string;
 }
 
 export interface DocumentMetadata {
@@ -208,9 +280,11 @@ export interface DocumentMetadata {
 
 export interface SmartDocument {
   id: string;
+  documentId?: string;
   title: string;
   subtitle?: string;
   documentType: string;
+  purpose?: string;
   category: string;
   language: string;
   theme: DocumentThemeId;
@@ -219,6 +293,8 @@ export interface SmartDocument {
   lengthMode: DocumentLengthMode;
   writingStyle: WritingStyle;
   quickMode: QuickDocumentMode;
+  designProfile: DocumentDesignProfile;
+  validationReport?: DocumentValidationReport;
   executiveSummary?: string;
   sections: DocumentSection[];
   metadata: DocumentMetadata;
