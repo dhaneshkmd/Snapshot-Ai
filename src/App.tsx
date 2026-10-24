@@ -28,6 +28,7 @@ import { CommentReplyStudio } from './components/CommentReplyStudio';
 import { SmartPdfStudio } from './components/pdfStudio/SmartPdfStudio';
 import { LanguageSelectorModal } from './components/LanguageSelectorModal';
 import { DiagnosticsModal } from './components/DiagnosticsModal';
+import { ToolsDirectoryModal } from './components/ToolsDirectoryModal';
 import {
   LanguageOption,
   SUPPORTED_LANGUAGES,
@@ -80,6 +81,7 @@ export default function App() {
   const [isExecutingAction, setIsExecutingAction] = useState(false);
   const [isTransforming, setIsTransforming] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
+  const [isToolsDirectoryOpen, setIsToolsDirectoryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedAction, setLastFailedAction] = useState<{
     actionName: string;
@@ -537,6 +539,7 @@ export default function App() {
         globalLanguage={globalLanguage}
         onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
         onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
+        onOpenToolsDirectory={() => setIsToolsDirectoryOpen(true)}
         pwaInstallPrompt={pwaPrompt}
         onInstallPwa={handleInstallPwa}
       />
@@ -609,6 +612,7 @@ export default function App() {
             onBackToMain={() => setCurrentTab('home')}
             globalLanguage={globalLanguage}
             onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+            onOpenToolsDirectory={() => setIsToolsDirectoryOpen(true)}
             initialText={pdfInitialText}
             initialImageBase64={pdfInitialImage}
             onSaveToHistory={(item) => {
@@ -629,6 +633,7 @@ export default function App() {
                   setPdfInitialImage(undefined);
                   setCurrentTab('pdf');
                 }}
+                onOpenToolsDirectory={() => setIsToolsDirectoryOpen(true)}
                 isProcessing={false}
               />
             )}
@@ -702,6 +707,18 @@ export default function App() {
       <DiagnosticsModal
         isOpen={isDiagnosticsOpen}
         onClose={() => setIsDiagnosticsOpen(false)}
+      />
+
+      {/* SnapAction AI Tools Directory & User Guide Modal (8 Tools) */}
+      <ToolsDirectoryModal
+        isOpen={isToolsDirectoryOpen}
+        onClose={() => setIsToolsDirectoryOpen(false)}
+        onNavigateToTab={(tab) => {
+          setCurrentTab(tab);
+          if (tab === 'home') setStage('upload');
+        }}
+        onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}
+        onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
       />
     </div>
   );

@@ -66,6 +66,7 @@ interface SmartPdfStudioProps {
   onBackToMain?: () => void;
   globalLanguage: LanguageOption;
   onOpenLanguageSelector: () => void;
+  onOpenToolsDirectory?: () => void;
   initialText?: string;
   initialImageBase64?: string;
   onSaveToHistory?: (item: any) => void;
@@ -75,6 +76,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   onBackToMain,
   globalLanguage,
   onOpenLanguageSelector,
+  onOpenToolsDirectory,
   initialText = '',
   initialImageBase64,
   onSaveToHistory,
@@ -710,6 +712,18 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
               className="px-2.5 py-1 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
             >
               Exit Studio
+            </button>
+          )}
+
+          {onOpenToolsDirectory && (
+            <button
+              onClick={onOpenToolsDirectory}
+              title="8 AI Tools Available — See full directory, how to use them, and how they help you"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/80 dark:bg-indigo-950/40 text-xs font-bold text-indigo-700 dark:text-indigo-300 shadow-2xs cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="hidden sm:inline">8 Tools Guide</span>
+              <span className="sm:hidden">8 Tools</span>
             </button>
           )}
 

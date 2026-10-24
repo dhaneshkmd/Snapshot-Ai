@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe, Activity } from 'lucide-react';
+import { Clock, Settings as SettingsIcon, Home, Sun, Moon, ChevronDown, Globe, Activity, Sparkles, HelpCircle } from 'lucide-react';
 import { LanguageOption } from '../modules/languages/languageData';
 import { SnapActionLogo } from './SnapActionLogo';
 
@@ -13,6 +13,7 @@ interface HeaderProps {
   globalLanguage: LanguageOption;
   onOpenLanguageSelector: () => void;
   onOpenDiagnostics?: () => void;
+  onOpenToolsDirectory?: () => void;
   pwaInstallPrompt?: any;
   onInstallPwa?: () => void;
 }
@@ -27,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   globalLanguage,
   onOpenLanguageSelector,
   onOpenDiagnostics,
+  onOpenToolsDirectory,
   pwaInstallPrompt,
   onInstallPwa,
 }) => {
@@ -44,6 +46,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action icons / Navigation */}
         <div className="flex items-center gap-1.5">
+          {/* 8 AI Tools Available Directory & Guide Button */}
+          {onOpenToolsDirectory && (
+            <button
+              onClick={onOpenToolsDirectory}
+              title="8 AI Tools Available — See full directory, how to use them, and how they help you"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-200/80 dark:border-indigo-800/60 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-950/40 dark:to-blue-950/40 hover:from-indigo-100 hover:to-blue-100 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="hidden sm:inline">8 Tools Available</span>
+              <span className="sm:hidden">8 Tools</span>
+            </button>
+          )}
+
           {/* Smart PDF Studio Mode Switcher */}
           <button
             onClick={() => onSelectTab(currentTab === 'pdf' ? 'home' : 'pdf')}
