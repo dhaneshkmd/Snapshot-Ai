@@ -216,6 +216,9 @@ export default function App() {
 
       const data = await res.json();
       setAnalysisResult(data);
+      const extractedContent = data.cleanMarkdown || data.rawText || data.summary || '';
+      setPdfInitialText(extractedContent);
+      setPdfInitialImage(base64);
       setParsedScreenshot({
         ...data,
         rawText: data.rawText || '',
@@ -232,6 +235,8 @@ export default function App() {
       console.warn('Network analyze call failed, falling back to local heuristic parser:', err);
       try {
         const parsed = await ScreenshotParser.parse(base64);
+        setPdfInitialText(parsed.cleanMarkdown || parsed.rawText || '');
+        setPdfInitialImage(base64);
         setParsedScreenshot(parsed);
         setAnalysisResult(parsed);
         setStage('recommend');
@@ -523,6 +528,7 @@ export default function App() {
         {/* Tab: Smart PDF Studio */}
         {currentTab === 'pdf' && (
           <SmartPdfStudio
+            key={pdfInitialImage ? pdfInitialImage.slice(0, 40) : (pdfInitialText ? pdfInitialText.slice(0, 30) : 'default-pdf-studio')}
             onBackToMain={() => setCurrentTab('home')}
             globalLanguage={globalLanguage}
             onOpenLanguageSelector={() => setIsGlobalLangModalOpen(true)}

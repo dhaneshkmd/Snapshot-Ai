@@ -117,7 +117,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
 
   // Automatically transcribe text from screenshot using Gemini / Tesseract
-  const transcribeScreenshot = async (base64: string): Promise<string> => {
+  const transcribeScreenshot = async (base64: string, shouldReplace = false): Promise<string> => {
     setIsTranscribing(true);
     setTranscribeNotice('Extracting text from screenshot...');
     setErrorMessage(null);
@@ -134,7 +134,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
         if (extracted) {
           setInputText((prev) => {
             const trimmed = prev.trim();
-            if (!trimmed) return extracted;
+            if (shouldReplace || !trimmed) return extracted;
             return `${trimmed}\n\n${extracted}`;
           });
           const wordCount = extracted.split(/\s+/).filter(Boolean).length;
@@ -154,18 +154,20 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     return extracted;
   };
 
-  // Synchronize initialText and initialImageBase64 if passed via props
+  // Synchronize initialText and initialImageBase64 when passed via props
   useEffect(() => {
-    if (initialText && !inputText.trim()) {
+    if (initialText) {
       setInputText(initialText);
+      setDocument(null); // Clear previous document to load new content
     }
   }, [initialText]);
 
   useEffect(() => {
     if (initialImageBase64) {
       setInputImage(initialImageBase64);
-      if (!inputText.trim()) {
-        transcribeScreenshot(initialImageBase64);
+      setDocument(null); // Clear previous document
+      if (!initialText) {
+        transcribeScreenshot(initialImageBase64, true);
       }
     }
   }, [initialImageBase64]);
@@ -300,15 +302,17 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     try {
       const optimized = await optimizeScreenshot(file, 1280, 0.85);
       setInputImage(optimized.base64);
-      // Automatically transcribe the screenshot into notes
-      await transcribeScreenshot(optimized.base64);
+      setDocument(null); // Clear preview to show input and progress
+      // Automatically transcribe the screenshot into notes, replacing stale notes
+      await transcribeScreenshot(optimized.base64, true);
     } catch {
       const reader = new FileReader();
       reader.onload = async (event) => {
         const b64 = event.target?.result as string;
         if (b64) {
           setInputImage(b64);
-          await transcribeScreenshot(b64);
+          setDocument(null);
+          await transcribeScreenshot(b64, true);
         }
       };
       reader.readAsDataURL(file);
@@ -1203,10 +1207,18 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
 
               {/* New Document Button */}
               <button
-                onClick={() => setDocument(null)}
+                onClick={() => {
+                  setDocument(null);
+                  setInputText('');
+                  setInputImage(null);
+                  setTranscribeNotice(null);
+                  setErrorMessage(null);
+                  setInfoNotice(null);
+                }}
                 className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                title="Start a new document with fresh notes"
               >
-                + New
+                + New Document
               </button>
             </div>
           </div>

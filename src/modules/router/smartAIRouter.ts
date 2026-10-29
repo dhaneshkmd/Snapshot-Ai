@@ -361,7 +361,7 @@ Provide direct, high quality, production-ready output with no conversational chi
   }
 
   private static async executeTransformers(actionName: string, content: string): Promise<string> {
-    const { sentiment, score } = await TransformersEngine.analyzeSentiment(content);
+    const { sentiment, score } = await TransformersEngine.analyzeSentiment(content, true);
     return [
       `### Sentiment & Tone Analysis`,
       `- **Detected Sentiment:** ${sentiment}`,

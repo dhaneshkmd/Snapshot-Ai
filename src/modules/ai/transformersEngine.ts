@@ -115,36 +115,43 @@ export class TransformersEngine {
 
   /**
    * Analyze sentiment of a comment or note.
-   * If model is not loaded yet or device lacks resources, falls back to rapid lexical heuristic.
+   * By default uses rapid lexical heuristics (0ms, 0MB download).
+   * Uses Transformers.js ONNX pipeline if already initialized or if forceModel is requested.
    */
   public static async analyzeSentiment(
-    text: string
+    text: string,
+    forceModel = false
   ): Promise<{ sentiment: SentimentResult; score: number; engine: 'transformers_js' | 'internal_lexical' }> {
     if (!text || text.trim().length === 0) {
       return { sentiment: 'NEUTRAL', score: 0.5, engine: 'internal_lexical' };
     }
 
-    // Try Transformers.js if pipeline is ready or requested
-    try {
-      const pipe = await this.getSentimentPipeline();
-      const output = await pipe(text.slice(0, 512));
-      const res = Array.isArray(output) ? output[0] : output;
-      const label = (res.label || '').toUpperCase();
-      const score = Number(res.score || 0.85);
+    // If model is already loaded or user explicitly requested model inference
+    if (this.sentimentPipeline || forceModel) {
+      try {
+        const pipe = await this.getSentimentPipeline();
+        const output = await pipe(text.slice(0, 512));
+        const res = Array.isArray(output) ? output[0] : output;
+        const label = (res.label || '').toUpperCase();
+        const score = Number(res.score || 0.85);
 
-      let sentiment: SentimentResult = 'NEUTRAL';
-      if (label.includes('POSITIVE')) sentiment = 'POSITIVE';
-      else if (label.includes('NEGATIVE')) sentiment = 'NEGATIVE';
+        let sentiment: SentimentResult = 'NEUTRAL';
+        if (label.includes('POSITIVE')) sentiment = 'POSITIVE';
+        else if (label.includes('NEGATIVE')) sentiment = 'NEGATIVE';
 
-      return {
-        sentiment,
-        score,
-        engine: 'transformers_js',
-      };
-    } catch {
-      // Instant deterministic heuristic fallback
-      return this.heuristicSentiment(text);
+        return {
+          sentiment,
+          score,
+          engine: 'transformers_js',
+        };
+      } catch (e) {
+        console.warn('[TransformersEngine] Model inference fallback to lexical:', e);
+        return this.heuristicSentiment(text);
+      }
     }
+
+    // Default fast zero-overhead heuristic
+    return this.heuristicSentiment(text);
   }
 
   /**
