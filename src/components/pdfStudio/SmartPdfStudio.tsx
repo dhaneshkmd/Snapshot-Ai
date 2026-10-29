@@ -117,10 +117,11 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
   const [transcribeNotice, setTranscribeNotice] = useState<string | null>(null);
 
   // Automatically transcribe text from screenshot using Gemini / Tesseract
-  const transcribeScreenshot = async (base64: string) => {
+  const transcribeScreenshot = async (base64: string): Promise<string> => {
     setIsTranscribing(true);
     setTranscribeNotice('Extracting text from screenshot...');
     setErrorMessage(null);
+    let extracted = '';
     try {
       const res = await fetch('/api/transcribe-screenshot', {
         method: 'POST',
@@ -129,7 +130,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
       });
       if (res.ok) {
         const data = await res.json();
-        const extracted = (data.text || '').trim();
+        extracted = (data.text || '').trim();
         if (extracted) {
           setInputText((prev) => {
             const trimmed = prev.trim();
@@ -139,7 +140,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
           const wordCount = extracted.split(/\s+/).filter(Boolean).length;
           setTranscribeNotice(`Extracted ${wordCount} words from screenshot`);
         } else {
-          setTranscribeNotice('Screenshot attached. No plain text detected; you can type notes directly.');
+          setTranscribeNotice('Screenshot attached. Ready for document styling.');
         }
       } else {
         setTranscribeNotice('Screenshot attached. Ready for document styling.');
@@ -150,12 +151,22 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     } finally {
       setIsTranscribing(false);
     }
+    return extracted;
   };
 
-  // Auto-transcribe if initialImageBase64 provided from outside and text is empty
+  // Synchronize initialText and initialImageBase64 if passed via props
   useEffect(() => {
-    if (initialImageBase64 && !inputText.trim()) {
-      transcribeScreenshot(initialImageBase64);
+    if (initialText && !inputText.trim()) {
+      setInputText(initialText);
+    }
+  }, [initialText]);
+
+  useEffect(() => {
+    if (initialImageBase64) {
+      setInputImage(initialImageBase64);
+      if (!inputText.trim()) {
+        transcribeScreenshot(initialImageBase64);
+      }
     }
   }, [initialImageBase64]);
 
@@ -236,6 +247,14 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     }
   };
 
+  // Helper to determine if a file is an image (including .jfif, .webp, .heic, etc.)
+  const isImageFile = (file: File) => {
+    return (
+      Boolean(file.type && file.type.startsWith('image/')) ||
+      /\.(jfif|jpe?g|png|webp|bmp|gif|tiff?|heic|heif)$/i.test(file.name)
+    );
+  };
+
   // Drop event listener for dragging images directly into the studio
   const handleDropEvent = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -243,7 +262,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (file.type.startsWith('image/')) {
+      if (isImageFile(file)) {
         await handleImageUpload(file);
       } else {
         const reader = new FileReader();
@@ -261,7 +280,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type.startsWith('image/')) {
+    if (isImageFile(file)) {
       handleImageUpload(file);
       return;
     }
@@ -305,7 +324,19 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
 
   // Generate Document: High-Speed Resilient Engine (Cloud Gemini + Instant Local Architect Fallback)
   const handleGenerateDocument = async (forceLocal = false) => {
-    if (!inputText.trim() && !inputImage) {
+    let effectiveNotes = inputText.trim();
+
+    // If notes are empty but an image is attached, extract text first
+    if (!effectiveNotes && inputImage) {
+      setIsGenerating(true);
+      setGenerationStep('Reading notes & extracting text from screenshot...');
+      const transcribed = await transcribeScreenshot(inputImage);
+      if (transcribed) {
+        effectiveNotes = transcribed.trim();
+      }
+    }
+
+    if (!effectiveNotes && !inputImage) {
       setErrorMessage('Please enter notes or upload a screenshot to transform.');
       return;
     }
@@ -333,7 +364,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              notesText: inputText,
+              notesText: effectiveNotes,
               imageBase64: inputImage,
               documentType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
               language: globalLanguage.name,
@@ -359,7 +390,7 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
       // 2. Seamless Local Structuring Fallback (Guarantees zero user downtime even if network/AI is 404/503)
       if (!generatedDoc) {
         generatedDoc = generateLocalFallbackDocument({
-          notesText: inputText,
+          notesText: effectiveNotes,
           hasImage: Boolean(inputImage),
           requestedType: selectedTemplateId !== 'auto' ? getTemplateById(selectedTemplateId).name : undefined,
           language: globalLanguage.name,
@@ -671,14 +702,14 @@ export const SmartPdfStudio: React.FC<SmartPdfStudioProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.md,.json,.pdf,.docx"
+        accept=".txt,.md,.json,.pdf,.docx,.jfif,.jpeg,.jpg,.png,.webp,.bmp,image/*"
         onChange={handleFileUpload}
         className="hidden"
       />
       <input
         ref={imageInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.jfif,.jpeg,.jpg,.png,.webp,.bmp"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleImageUpload(file);

@@ -37,6 +37,9 @@ import { DetectedComment } from '../modules/comments/commentDetector';
 import { LanguageSelectorModal } from './LanguageSelectorModal';
 import { ReplyStyleModal } from './ReplyStyleModal';
 import { tryGenerateLocalReply } from '../modules/reply/localReplyTemplateEngine';
+import { TransformersEngine } from '../modules/ai/transformersEngine';
+import { ChromeBuiltinEngine } from '../modules/ai/chromeBuiltinEngine';
+import { SmartAIRouter } from '../modules/router/smartAIRouter';
 
 interface CommentReplyStudioProps {
   comments: DetectedComment[];
@@ -100,6 +103,8 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
 
   // Result state
   const [generatedReply, setGeneratedReply] = useState('');
+  const [replyEngineBadge, setReplyEngineBadge] = useState<string | null>(null);
+  const [commentSentiment, setCommentSentiment] = useState<{ sentiment: string; score: number } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isEditingReply, setIsEditingReply] = useState(false);
@@ -118,9 +123,25 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
       setTranslatedComment(null);
       setShowTranslated(false);
       setGeneratedReply('');
+      setReplyEngineBadge(null);
       setAlternatives([]);
     }
   }, [activeComment.id, activeComment.text]);
+
+  // Analyze comment sentiment with Transformers.js on comment change
+  useEffect(() => {
+    if (commentText.trim()) {
+      TransformersEngine.analyzeSentiment(commentText)
+        .then((res) => {
+          setCommentSentiment({ sentiment: res.sentiment, score: res.score });
+        })
+        .catch(() => {
+          setCommentSentiment(null);
+        });
+    } else {
+      setCommentSentiment(null);
+    }
+  }, [commentText]);
 
   // Keep targetLanguage synced with globalLanguage default
   useEffect(() => {
@@ -131,7 +152,7 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
   const activeSecondaryStyle = secondaryStyleId ? getStyleById(secondaryStyleId) : null;
   const suggestedStyles = suggestStylesForComment(commentText);
 
-  // 1. Translate Comment in-place
+  // 1. Translate Comment in-place (Tries Chrome Built-in Translator first)
   const handleTranslateComment = async () => {
     if (showTranslated && translatedComment) {
       setShowTranslated(false);
@@ -145,6 +166,24 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
 
     setIsTranslatingComment(true);
     try {
+      // 1. Try Chrome Built-in Translator
+      try {
+        const nativeTranslation = await ChromeBuiltinEngine.translate(
+          commentText,
+          'auto',
+          targetLanguage.code
+        );
+        if (nativeTranslation && nativeTranslation.trim().length > 0) {
+          setTranslatedComment(nativeTranslation.trim());
+          setShowTranslated(true);
+          setIsTranslatingComment(false);
+          return;
+        }
+      } catch {
+        // Fallback to SmartAIRouter
+      }
+
+      // 2. Fallback to SmartAIRouter
       const res = await fetch('/api/execute-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +207,7 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
     }
   };
 
-  // 2. Generate Reply
+  // 2. Generate Reply (Uses Level 0 template -> SmartAIRouter [Chrome AI / WebLLM / Cloud AI])
   const handleGenerateReply = async (customPromptOverride?: string) => {
     if (!commentText.trim()) return;
 
@@ -187,11 +226,12 @@ export const CommentReplyStudio: React.FC<CommentReplyStudioProps> = ({
     if (localMatch.matched && localMatch.replyText && !customInstruction && !userDraftReply) {
       setGeneratedReply(localMatch.replyText);
       setEditedReplyText(localMatch.replyText);
+      setReplyEngineBadge('⚡ 100% On-Device • Template Heuristic (0 Tokens)');
       setIsGenerating(false);
       return;
     }
 
-    // Call Level 3 Gemini Gateway with strict token minimization
+    // Call SmartAIRouter (Routes to Chrome Built-in AI, WebLLM, or Cloud AI Gateway based on language & device)
     try {
       const promptToSend =
         customPromptOverride ||
@@ -210,25 +250,19 @@ Strict Formatting & Cultural Rules:
 - If target language is right-to-left (e.g. Arabic, Urdu), format appropriately.
 - Output ONLY the ready-to-post reply directly without conversational meta-introductions (no "Here is a reply:").`;
 
-      const res = await fetch('/api/execute-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actionName: `Multilingual Reply: ${activePrimaryStyle.name} (${targetLanguage.name})`,
-          actionPrompt: promptToSend,
-          contextSummary: `Social Comment Reply on ${activeComment.platform || 'Social Platform'}`,
-          extractedText: `Target Comment: "${commentText}"\nAuthor: ${activeComment.author || 'User'}`,
-        }),
+      const smartResult = await SmartAIRouter.executeAction({
+        actionName: `Multilingual Reply: ${activePrimaryStyle.name} (${targetLanguage.name})`,
+        actionPrompt: promptToSend,
+        contextSummary: `Social Comment Reply on ${activeComment.platform || 'Social Platform'}`,
+        extractedText: `Target Comment: "${commentText}"\nAuthor: ${activeComment.author || 'User'}`,
+        targetLanguageCode: targetLanguage.code,
+        targetLanguageName: targetLanguage.name,
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to generate reply. Please try again.');
-      }
-
-      const data = await res.json();
-      const output = (data.result || '').trim();
+      const output = (smartResult.resultText || '').trim();
       setGeneratedReply(output);
       setEditedReplyText(output);
+      setReplyEngineBadge(smartResult.engineBadge);
     } catch (err: any) {
       console.error('Reply generation failed', err);
       setErrorMsg(err?.message || 'Could not generate reply. Please try again.');
@@ -403,13 +437,27 @@ Write strictly in ${targetLanguage.name}. No English translation unless target l
       {/* 1. FOCUS COMMENT SECTION */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-md shadow-slate-200/50 dark:shadow-black/40 space-y-3.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200/50 dark:border-blue-800/50">
               {activeComment.platform || 'Social Comment'}
             </span>
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
               {activeComment.author}
             </span>
+            {commentSentiment && (
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  commentSentiment.sentiment === 'POSITIVE'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    : commentSentiment.sentiment === 'NEGATIVE'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                }`}
+                title="Analyzed with Transformers.js DistilBERT"
+              >
+                ⚡ Tone: {commentSentiment.sentiment} ({Math.round(commentSentiment.score * 100)}%)
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -706,13 +754,18 @@ Write strictly in ${targetLanguage.name}. No English translation unless target l
       {generatedReply && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-md shadow-slate-200/50 dark:shadow-black/40 space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
                 {targetLanguage.flag} {targetLanguage.nativeName} Reply
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
                 {activePrimaryStyle.name}
               </span>
+              {replyEngineBadge && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">
+                  {replyEngineBadge}
+                </span>
+              )}
             </div>
 
             <button

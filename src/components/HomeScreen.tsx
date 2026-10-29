@@ -46,7 +46,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, []);
 
   const processFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    const isImage =
+      Boolean(file.type && file.type.startsWith('image/')) ||
+      /\.(jfif|jpe?g|png|webp|bmp|gif|tiff?|heic|heif)$/i.test(file.name);
+    if (!isImage) {
       setPasteError('Please select a valid image screenshot');
       return;
     }
@@ -59,7 +62,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
         if (base64) {
-          onImageSelected(base64, file.type, file.name);
+          const safeMime = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+          onImageSelected(base64, safeMime, file.name);
         }
       };
       reader.readAsDataURL(file);
@@ -167,14 +171,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.jfif,.jpeg,.jpg,.png,.webp,.bmp"
         onChange={handleFileChange}
         className="hidden"
       />
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.jfif,.jpeg,.jpg,.png,.webp,.bmp"
         capture="environment"
         onChange={handleFileChange}
         className="hidden"

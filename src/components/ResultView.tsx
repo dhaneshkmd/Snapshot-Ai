@@ -173,6 +173,14 @@ export const ResultView: React.FC<ResultViewProps> = ({
             <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
               {actionResult.actionName}
             </h2>
+            {actionResult.engineBadge && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-wide mt-1 bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <span>{actionResult.engineBadge}</span>
+                {typeof actionResult.latencyMs === 'number' && (
+                  <span className="text-slate-400 font-normal">• {actionResult.latencyMs}ms</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             {!isEditing && (

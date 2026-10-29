@@ -17,6 +17,7 @@ import {
   Copy,
   Layers,
   Wand2,
+  Cpu,
 } from 'lucide-react';
 
 export interface ToolItem {
@@ -235,28 +236,30 @@ export const ToolsDirectoryModal: React.FC<ToolsDirectoryModalProps> = ({
       },
     },
     {
-      id: 'offline_resilient_architect',
-      name: 'Hybrid AI & Instant Local Fallback Engine',
+      id: 'smart_ai_router',
+      name: 'Smart AI Router (WebLLM + Transformers.js + Chrome AI)',
       category: 'Productivity',
-      badge: 'Zero Downtime',
-      badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-      icon: <Activity className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
-      tagline: 'Guarantees 100% uptime with local document structuring even when offline or network fails.',
+      badge: '3 Local Engines',
+      badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+      icon: <Cpu className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
+      tagline: 'Maximizes free on-device processing via WebLLM, Transformers.js & Chrome Built-in AI with zero token waste.',
       whatItDoes:
-        'Pairs Google Gemini cloud intelligence with an in-browser deterministic semantic parser. If cloud servers experience traffic spikes or rate limits, the local architect immediately takes over with zero disruption or error modals.',
+        'A unified local AI router that coordinates 5 execution engines: Internal Code (0 tokens), Transformers.js (on-device sentiment & classification), Chrome Built-in AI (Gemini Nano & native translation), WebLLM (on-device WebGPU generative AI), and Cloud AI Gateway. Runs locally whenever your device and language allow, saving 95%+ of API calls.',
       howToUse: [
-        '1. Works automatically behind the scenes with zero setup required.',
-        '2. Check system status by tapping the green Pulse / Activity icon in the header.',
-        '3. View diagnostic logs, API response times, and active fallback health.',
+        '1. Works automatically on every action, comment reply, and document generation.',
+        '2. Configure preferences in Settings: "Automatic (Recommended)", "Prefer On-Device", or "Cloud With Permission".',
+        '3. Every result displays an authentic badge showing which engine executed it (e.g., ⚡ On-Device WebLLM vs ☁️ Cloud AI).',
+        '4. View on-device token savings and live engine health in the Diagnostics modal.',
       ],
       howItHelps: [
-        '• You will never be left stranded before a deadline due to server downtime.',
-        '• High-speed local processing for immediate layout restructuring.',
+        '• 100% on-device privacy for sensitive screenshots and personal notes.',
+        '• Free, zero-cost processing without consuming external API rate limits.',
+        '• Continues working offline after model download with zero downtime.',
       ],
-      actionLabel: 'Check System Diagnostics',
+      actionLabel: 'Configure in Settings',
       onLaunch: () => {
         onClose();
-        if (onOpenDiagnostics) onOpenDiagnostics();
+        onNavigateToTab('settings');
       },
     },
   ];

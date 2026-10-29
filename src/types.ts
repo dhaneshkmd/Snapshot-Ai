@@ -35,6 +35,10 @@ export interface ActionExecutionResult {
   resultText: string;
   executedAt: string;
   transformationChain: string[];
+  engineBadge?: string;
+  engineUsed?: string;
+  tokensSaved?: number;
+  latencyMs?: number;
 }
 
 export interface HistoryItem {
@@ -47,6 +51,7 @@ export interface HistoryItem {
   lastResult: string;
   timestamp: number;
   isFavorite?: boolean;
+  engineBadge?: string;
 }
 
 export interface AppSettings {
@@ -55,4 +60,5 @@ export interface AppSettings {
   defaultLanguageCode?: string;
   favoriteReplyStyles?: string[];
   defaultReplyLength?: 'short' | 'medium' | 'detailed';
+  aiPreference?: 'automatic' | 'prefer_on_device' | 'cloud_with_permission';
 }

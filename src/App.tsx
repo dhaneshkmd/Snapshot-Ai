@@ -36,6 +36,7 @@ import {
   getLanguageByCode,
 } from './modules/languages/languageData';
 import { extractCommentsFromOCR, DetectedComment } from './modules/comments/commentDetector';
+import { SmartAIRouter } from './modules/router/smartAIRouter';
 
 function formatErrorMessage(errData: any, fallback: string): string {
   if (!errData) return fallback;
@@ -243,119 +244,35 @@ export default function App() {
     }
   };
 
-  // 2. Select & Execute Action: Local Instant or Text-First Gemini
+  // 2. Select & Execute Action: Smart AI Router (Internal Code, Chrome Built-in AI, WebLLM, Transformers.js, Cloud AI)
   const handleSelectAction = async (actionName: string, actionPrompt: string) => {
     if (!currentImage || !analysisResult) return;
     setError(null);
     setLastFailedAction({ actionName, actionPrompt });
     setIsExecutingAction(true);
 
-    const nameLower = actionName.toLowerCase();
-
-    // Check if this action is an instant deterministic local action (0 Gemini tokens, 0ms latency)
-    const isLocalAction =
-      nameLower.includes('instant') ||
-      nameLower.includes('extract text') ||
-      nameLower.includes('extract all text') ||
-      nameLower.includes('extract raw text') ||
-      nameLower.includes('extract error text') ||
-      nameLower.includes('copy trace') ||
-      nameLower.includes('export as csv') ||
-      nameLower.includes('export csv') ||
-      nameLower.includes('add to calendar (.ics');
-
-    if (isLocalAction && parsedScreenshot) {
-      let localOutput = '';
-      if (nameLower.includes('csv')) {
-        const rows = [
-          '| Field / Item | Extracted Value |',
-          '| :--- | :--- |'
-        ];
-        parsedScreenshot.extractedEntities.rawEntityList.forEach((e) => {
-          rows.push(`| **${e.label}** | ${e.value.replace(/\|/g, '-')} |`);
-        });
-        if (parsedScreenshot.extractedEntities.prices.length > 0) {
-          parsedScreenshot.extractedEntities.prices.forEach((p, i) => {
-            rows.push(`| Price Entry ${i + 1} | ${p} |`);
-          });
-        }
-        localOutput = rows.join('\n');
-      } else if (nameLower.includes('calendar') || nameLower.includes('.ics')) {
-        const dt = parsedScreenshot.extractedEntities.dates[0] || '2026-10-18';
-        const cleanDate = dt.replace(/[^0-9]/g, '').padEnd(8, '0');
-        localOutput = [
-          'BEGIN:VCALENDAR',
-          'VERSION:2.0',
-          'PRODID:-//SnapAction AI//EN',
-          'BEGIN:VEVENT',
-          `SUMMARY:${parsedScreenshot.title || 'Event from Screenshot'}`,
-          `DESCRIPTION:${parsedScreenshot.summary || 'Extracted by SnapAction AI without Gemini tokens'}`,
-          `DTSTART:${cleanDate}T090000Z`,
-          `DTEND:${cleanDate}T100000Z`,
-          `LOCATION:${parsedScreenshot.extractedEntities.locations[0] || 'Online'}`,
-          'STATUS:CONFIRMED',
-          'END:VEVENT',
-          'END:VCALENDAR',
-        ].join('\n');
-      } else {
-        localOutput = parsedScreenshot.cleanMarkdown || parsedScreenshot.rawText || 'No text detected in screenshot.';
-      }
-
-      const executionResult: ActionExecutionResult = {
-        actionName,
-        resultText: localOutput,
-        executedAt: new Date().toISOString(),
-        transformationChain: [actionName],
-      };
-
-      setActionResult(executionResult);
-      setStage('result');
-      setLastFailedAction(null);
-      setIsExecutingAction(false);
-
-      saveHistoryItem({
-        title: analysisResult.title || analysisResult.contentType || 'Screenshot Action',
-        contentType: analysisResult.contentType,
-        detectedIntent: analysisResult.detectedIntent,
-        thumbnail: currentImage.base64,
-        lastAction: actionName,
-        lastResult: localOutput.substring(0, 150) + (localOutput.length > 150 ? '...' : ''),
-      });
-      setHistoryItems(getStoredHistory());
-      return;
-    }
-
-    // Otherwise, call Gemini with structured text context (95%+ fewer tokens than vision)
     try {
-      const res = await fetch('/api/execute-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actionName,
-          actionPrompt,
-          contextSummary: analysisResult.summary || analysisResult.detectedIntent,
-          cleanMarkdown: parsedScreenshot?.cleanMarkdown,
-          extractedText: parsedScreenshot?.rawText,
-          // Only send image fallback if text extraction was completely empty
-          imageBase64: (!parsedScreenshot?.rawText || parsedScreenshot.rawText.length < 10) ? currentImage.base64 : undefined,
-          mimeType: currentImage.mimeType,
-          isTransformation: false,
-        }),
+      const smartResult = await SmartAIRouter.executeAction({
+        actionName,
+        actionPrompt,
+        contextSummary: analysisResult.summary || analysisResult.detectedIntent,
+        cleanMarkdown: parsedScreenshot?.cleanMarkdown,
+        extractedText: parsedScreenshot?.rawText,
+        targetLanguageCode: globalLanguage.code,
+        targetLanguageName: globalLanguage.name,
+        userPreference: settings.aiPreference,
+        imageBase64: (!parsedScreenshot?.rawText || parsedScreenshot.rawText.length < 10) ? currentImage.base64 : undefined,
       });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        const msg = formatErrorMessage(errJson, `Action failed (${res.status})`);
-        throw new Error(msg);
-      }
-
-      const { result } = await res.json();
 
       const newExecutionResult: ActionExecutionResult = {
         actionName,
-        resultText: result,
-        executedAt: new Date().toISOString(),
+        resultText: smartResult.resultText,
+        executedAt: smartResult.executedAt,
         transformationChain: [actionName],
+        engineBadge: smartResult.engineBadge,
+        engineUsed: smartResult.engineUsed,
+        tokensSaved: smartResult.tokensSaved,
+        latencyMs: smartResult.latencyMs,
       };
 
       setActionResult(newExecutionResult);
@@ -369,7 +286,8 @@ export default function App() {
         detectedIntent: analysisResult.detectedIntent,
         thumbnail: currentImage.base64,
         lastAction: actionName,
-        lastResult: result.substring(0, 150) + (result.length > 150 ? '...' : ''),
+        lastResult: smartResult.resultText.substring(0, 150) + (smartResult.resultText.length > 150 ? '...' : ''),
+        engineBadge: smartResult.engineBadge,
       });
 
       setHistoryItems(getStoredHistory());
@@ -381,46 +299,42 @@ export default function App() {
     }
   };
 
-  // 3. Result Transformation (Chaining)
+  // 3. Result Transformation (Chaining through SmartAIRouter)
   const handleTransformResult = async (transformationPrompt: string) => {
     if (!actionResult || !analysisResult) return;
     setIsTransforming(true);
     setError(null);
 
     try {
-      const res = await fetch('/api/execute-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actionName: `Transform: ${transformationPrompt.substring(0, 30)}...`,
-          actionPrompt: transformationPrompt,
-          contextSummary: analysisResult.summary,
-          previousResult: actionResult.resultText,
-          isTransformation: true,
-        }),
+      const smartResult = await SmartAIRouter.executeAction({
+        actionName: `Transform: ${transformationPrompt.substring(0, 30)}...`,
+        actionPrompt: transformationPrompt,
+        contextSummary: analysisResult.summary,
+        cleanMarkdown: actionResult.resultText,
+        extractedText: actionResult.resultText,
+        targetLanguageCode: globalLanguage.code,
+        targetLanguageName: globalLanguage.name,
+        userPreference: settings.aiPreference,
       });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        const msg = formatErrorMessage(errJson, 'Transformation failed');
-        throw new Error(msg);
-      }
-
-      const { result } = await res.json();
 
       const updatedChain = [...actionResult.transformationChain, transformationPrompt.substring(0, 25)];
       setActionResult({
         ...actionResult,
-        resultText: result,
+        resultText: smartResult.resultText,
         transformationChain: updatedChain,
+        engineBadge: smartResult.engineBadge,
+        engineUsed: smartResult.engineUsed,
+        tokensSaved: (actionResult.tokensSaved || 0) + smartResult.tokensSaved,
+        latencyMs: smartResult.latencyMs,
       });
 
       // Update latest history item with refined result
       const historyList = getStoredHistory();
       if (historyList.length > 0) {
         updateHistoryItem(historyList[0].id, {
-          lastResult: result.substring(0, 150),
+          lastResult: smartResult.resultText.substring(0, 150),
           lastAction: transformationPrompt.substring(0, 25),
+          engineBadge: smartResult.engineBadge,
         });
         setHistoryItems(getStoredHistory());
       }

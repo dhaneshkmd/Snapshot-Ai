@@ -34,6 +34,26 @@ const ai = new GoogleGenAI({
   },
 });
 
+function normalizeImageMimeType(rawMime: string, base64Data?: string): string {
+  let m = (rawMime || '').toLowerCase().trim();
+  if (m === 'image/jfif' || m === 'image/pjpeg' || m === 'image/jpg') {
+    return 'image/jpeg';
+  }
+  if (m === 'image/x-png') {
+    return 'image/png';
+  }
+  if (!m || m === 'application/octet-stream' || m === 'image/*') {
+    if (base64Data) {
+      if (base64Data.startsWith('/9j/')) return 'image/jpeg';
+      if (base64Data.startsWith('iVBORw')) return 'image/png';
+      if (base64Data.startsWith('R0lGOD')) return 'image/gif';
+      if (base64Data.startsWith('UklGR')) return 'image/webp';
+    }
+    return 'image/jpeg';
+  }
+  return m;
+}
+
 function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string } {
   if (!dataUrlOrBase64) return { mimeType: 'image/png', data: '' };
   const str = String(dataUrlOrBase64).trim();
@@ -41,12 +61,15 @@ function stripBase64(dataUrlOrBase64: string): { data: string; mimeType: string 
     const commaIndex = str.indexOf(',');
     if (commaIndex !== -1) {
       const mimeMatch = str.substring(0, commaIndex).match(/^data:([^;]+);/);
-      const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+      const rawMime = mimeMatch ? mimeMatch[1] : 'image/png';
       const data = str.substring(commaIndex + 1).replace(/\s+/g, '');
+      const mimeType = normalizeImageMimeType(rawMime, data);
       return { mimeType, data };
     }
   }
-  return { mimeType: 'image/png', data: str.replace(/\s+/g, '') };
+  const data = str.replace(/\s+/g, '');
+  const mimeType = normalizeImageMimeType('image/png', data);
+  return { mimeType, data };
 }
 
 function parseJsonSafe(raw: string): any {
@@ -856,9 +879,20 @@ ${schemaPrompt}`;
       fullDocument.validationReport = validateDocumentQuality(fullDocument, notesText || '');
     } catch (aiErr: any) {
       console.warn('[AI] Upstream model call unavailable or rate limited, falling back to local DynamicDocumentArchitect:', aiErr?.message);
-      // Seamless, content-driven fallback guarantees zero downtime and 100% content-driven documents!
+      let effectiveNotes = (notesText || '').trim();
+      if (!effectiveNotes && imageBase64) {
+        try {
+          const { data: cleanedData } = stripBase64(imageBase64);
+          const buffer = Buffer.from(cleanedData, 'base64');
+          const result = await Tesseract.recognize(buffer, 'eng');
+          effectiveNotes = (result.data.text || '').trim();
+        } catch (ocrErr) {
+          console.warn('[OCR Fallback Error]:', ocrErr);
+        }
+      }
+
       fullDocument = generateDynamicDocument({
-        notesText,
+        notesText: effectiveNotes,
         hasImage: Boolean(imageBase64),
         requestedType: documentType,
         language,

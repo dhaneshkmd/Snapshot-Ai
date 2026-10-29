@@ -55,17 +55,20 @@ export async function optimizeScreenshot(
       });
     };
 
-    img.onload = processImage;
-    img.onerror = () => {
-      // Fallback on error
-      if (typeof fileOrBase64 === 'string') {
-        resolve({ base64: fileOrBase64, mimeType: 'image/png' });
-      } else {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve({ base64: e.target?.result as string, mimeType: fileOrBase64.type });
-        reader.readAsDataURL(fileOrBase64);
-      }
-    };
+      img.onerror = () => {
+        // Fallback on error
+        if (typeof fileOrBase64 === 'string') {
+          resolve({ base64: fileOrBase64, mimeType: 'image/jpeg' });
+        } else {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const rawType = (fileOrBase64.type || '').toLowerCase();
+            const safeType = rawType.includes('jfif') || rawType.includes('pjpeg') || !rawType ? 'image/jpeg' : fileOrBase64.type;
+            resolve({ base64: e.target?.result as string, mimeType: safeType });
+          };
+          reader.readAsDataURL(fileOrBase64);
+        }
+      };
 
     if (typeof fileOrBase64 === 'string') {
       img.src = fileOrBase64;

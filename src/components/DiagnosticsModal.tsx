@@ -12,8 +12,13 @@ import {
   Zap,
   Clock,
   Layers,
+  Globe,
+  HardDrive,
 } from 'lucide-react';
-import { SnapActionIntelligenceRouter } from '../modules/router/intelligenceRouter';
+import { SmartAIRouter, SmartRouterStats } from '../modules/router/smartAIRouter';
+import { ChromeBuiltinEngine, ChromeBuiltinCapabilities } from '../modules/ai/chromeBuiltinEngine';
+import { WebLLMEngine } from '../modules/ai/webllmEngine';
+import { TransformersEngine } from '../modules/ai/transformersEngine';
 
 interface DiagnosticsModalProps {
   isOpen: boolean;
@@ -25,7 +30,9 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [isTestingVision, setIsTestingVision] = useState(false);
-  const [routerTelemetry, setRouterTelemetry] = useState<any>(null);
+  const [routerStats, setRouterStats] = useState<SmartRouterStats>(SmartAIRouter.getStats());
+  const [chromeCaps, setChromeCaps] = useState<ChromeBuiltinCapabilities | null>(null);
+  const [hasWebGpu, setHasWebGpu] = useState<boolean | null>(null);
 
   const fetchHealth = async () => {
     setIsLoading(true);
@@ -39,7 +46,9 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
       console.error('Failed to fetch health data:', e);
     } finally {
       setIsLoading(false);
-      setRouterTelemetry(SnapActionIntelligenceRouter.getTelemetry());
+      setRouterStats(SmartAIRouter.getStats());
+      ChromeBuiltinEngine.checkCapabilities().then(setChromeCaps);
+      WebLLMEngine.isSupported().then((res) => setHasWebGpu(res.supported));
     }
   };
 
@@ -60,7 +69,6 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
       });
       const data = await res.json();
       setTestResult(data);
-      // Refresh health counts
       await fetchHealth();
     } catch (e: any) {
       setTestResult({
@@ -76,7 +84,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -91,7 +99,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                AIProviderService & SnapAction Intelligence Router
+                SnapAction Smart AI Router & Multi-Engine Matrix
               </p>
             </div>
           </div>
@@ -117,43 +125,109 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
         {/* Content Body */}
         <div className="p-5 space-y-4 overflow-y-auto text-xs">
           {/* Architecture Operating Principle Badge */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-200/80 dark:border-blue-850 space-y-1">
             <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Cpu className="w-3.5 h-3.5 text-blue-500" />
-              Hybrid Intelligence Routing Constitution
+              Unified Smart AI Router Constitution
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              <strong>Use AI when AI is required</strong> (Multimodal worksite vision, natural multilingual replies).
-              <strong> Use internal programming when sufficient</strong> (OCR caching, 5x5 risk calculations, docx/csv export).
+              <strong>Use internal programming</strong> for simple tasks (0 tokens).{' '}
+              <strong>Use Transformers.js</strong> for lightweight local intelligence.{' '}
+              <strong>Use Chrome Built-in AI</strong> when supported.{' '}
+              <strong>Use WebLLM</strong> for capable local language generation.{' '}
+              <strong>Use Cloud AI Gateway</strong> when necessary and authorized.
             </p>
           </div>
 
-          {/* Model Roles & Provider Status */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Vision Model Role
-              </span>
-              <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-orange-500" />
-                {healthData?.metrics?.activeVisionModel || 'gemini-2.5-flash'}
-              </div>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">
-                Multimodal Image Capable
-              </span>
-            </div>
+          {/* Three Local AI Engines Status Matrix */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+              On-Device AI Engine Matrix
+            </span>
 
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Text Model Role
-              </span>
-              <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-blue-500" />
-                {healthData?.metrics?.activeTextModel || 'gemini-2.5-flash'}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {/* Transformers.js */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Engine 1: HF
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                </div>
+                <div className="font-bold text-slate-900 dark:text-white">
+                  Transformers.js
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  DistilBERT & BGE (WASM/WebGPU)
+                </div>
               </div>
-              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold block">
-                Fast Low-Latency Inference
-              </span>
+
+              {/* WebLLM */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Engine 2: WebLLM
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${hasWebGpu ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                </div>
+                <div className="font-bold text-slate-900 dark:text-white truncate">
+                  {WebLLMEngine.getActiveModel()?.name || 'SmolLM2 360M'}
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {hasWebGpu ? 'WebGPU Available' : 'No WebGPU'}
+                </div>
+              </div>
+
+              {/* Chrome Built-in */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Engine 3: Chrome
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${chromeCaps?.supported ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                </div>
+                <div className="font-bold text-slate-900 dark:text-white">
+                  Built-in AI
+                </div>
+                <div className="text-[10px] text-slate-500">
+                  {chromeCaps?.supported ? 'Gemini Nano Ready' : 'Platform Unsupported'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Cloud Gateway Roles */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+              Cloud AI Gateway (Authorized Fallback)
+            </span>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Vision Role
+                </span>
+                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-orange-500" />
+                  {healthData?.metrics?.activeVisionModel || 'gemini-2.5-flash'}
+                </div>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">
+                  Multimodal Image Capable
+                </span>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Text Generation Role
+                </span>
+                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-blue-500" />
+                  {healthData?.metrics?.activeTextModel || 'gemini-2.5-flash'}
+                </div>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold block">
+                  Fast Low-Latency Fallback
+                </span>
+              </div>
             </div>
           </div>
 
@@ -213,57 +287,35 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
             )}
           </div>
 
-          {/* Active Routes & Telemetry */}
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-              Active Server Routes (All Operational)
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {(healthData?.activeRoutes || ['/api/analyze-screenshot', '/api/execute-action', '/api/local-ocr', '/api/health']).map(
-                (route: string) => (
-                  <div
-                    key={route}
-                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between"
-                  >
-                    <span className="font-mono text-slate-700 dark:text-slate-300">{route}</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          {/* Session Metrics */}
+          {/* Session Metrics & On-Device Token Savings */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/70 space-y-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Provider Telemetry & Router State
+              Cost Control Telemetry & Savings
             </span>
             <div className="grid grid-cols-3 gap-2 text-center pt-1">
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
                 <div className="text-base font-black text-slate-900 dark:text-white">
-                  {healthData?.metrics?.totalRequests ?? 0}
+                  {routerStats.onDeviceActions}
                 </div>
-                <div className="text-[10px] text-slate-400">Total API Calls</div>
+                <div className="text-[10px] text-slate-400">Local Actions</div>
               </div>
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
                 <div className="text-base font-black text-emerald-600">
-                  {healthData?.metrics?.successfulRequests ?? 0}
+                  {routerStats.percentLocal}%
                 </div>
-                <div className="text-[10px] text-slate-400">Successes</div>
+                <div className="text-[10px] text-slate-400">Local %</div>
               </div>
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800">
                 <div className="text-base font-black text-blue-600">
-                  {healthData?.metrics?.lastLatencyMs ? `${healthData.metrics.lastLatencyMs}ms` : '—'}
+                  {routerStats.tokensSaved.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-slate-400">Last Latency</div>
+                <div className="text-[10px] text-slate-400">Tokens Saved</div>
               </div>
             </div>
-            {routerTelemetry && (
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 flex items-center justify-between">
-                <span>Last Routed Task: {routerTelemetry.lastTask}</span>
-                <span className="font-semibold text-blue-600">{routerTelemetry.lastMode}</span>
-              </div>
-            )}
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 flex items-center justify-between">
+              <span>Last Engine: {routerStats.lastActionEngine}</span>
+              <span className="font-semibold text-blue-600">{routerStats.lastLatencyMs}ms</span>
+            </div>
           </div>
         </div>
 
