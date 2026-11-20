@@ -8,14 +8,12 @@ interface HomeScreenProps {
   onImageSelected: (imageBase64: string, mimeType: string, filename?: string) => void;
   isProcessing?: boolean;
   onOpenPdfStudio?: () => void;
-  onOpenToolsDirectory?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onImageSelected,
   isProcessing,
   onOpenPdfStudio,
-  onOpenToolsDirectory,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -46,10 +44,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, []);
 
   const processFile = async (file: File) => {
-    const isImage =
-      Boolean(file.type && file.type.startsWith('image/')) ||
-      /\.(jfif|jpe?g|png|webp|bmp|gif|tiff?|heic|heif)$/i.test(file.name);
-    if (!isImage) {
+    if (!file.type.startsWith('image/')) {
       setPasteError('Please select a valid image screenshot');
       return;
     }
@@ -62,8 +57,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
         if (base64) {
-          const safeMime = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
-          onImageSelected(base64, safeMime, file.name);
+          onImageSelected(base64, file.type, file.name);
         }
       };
       reader.readAsDataURL(file);
@@ -171,14 +165,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.jfif,.jpeg,.jpg,.png,.webp,.bmp"
+        accept="image/*"
         onChange={handleFileChange}
         className="hidden"
       />
       <input
         ref={cameraInputRef}
         type="file"
-        accept="image/*,.jfif,.jpeg,.jpg,.png,.webp,.bmp"
+        accept="image/*"
         capture="environment"
         onChange={handleFileChange}
         className="hidden"
@@ -196,19 +190,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
             Screenshot → Understand → Recommend → Act
           </div>
-
-          {onOpenToolsDirectory && (
-            <button
-              onClick={onOpenToolsDirectory}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200/80 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-300 text-xs font-bold tracking-wide hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all cursor-pointer shadow-2xs mt-2"
-            >
-              <span>🛠️</span>
-              <span>8 Powerful AI Tools</span>
-              <span className="text-[11px] font-medium text-indigo-500 dark:text-indigo-400 underline ml-0.5">
-                How to use & benefits →
-              </span>
-            </button>
-          )}
         </div>
 
         <div>
